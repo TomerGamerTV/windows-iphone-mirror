@@ -1,4 +1,6 @@
 .venv/
+.venv-*/
+worker/.venv/
 .worktrees/
 __pycache__/
 *.py[cod]
@@ -6,3 +8,15 @@ __pycache__/
 *.rtp
 *.hevc
 *.h264
+bin/
+obj/
+artifacts/
+publish/
+
+# Local dependency/runtime scratch and diagnostics
+.tmp-*/
+*.jsonl
+*.log
+*.sqlite
+*.db
+*.pdb

@@ -1,0 +1,21 @@
+# Implementation Instructions
+
+- Windows 11 x64 only.
+- No requirement to preserve Linux compatibility after equivalent Windows functionality is verified.
+- Native .NET 10 WPF frontend.
+- Bundled/private Python 3.14 CoreDevice worker pinned to `pymobiledevice3==11.13.1`.
+- No visible console windows in normal GUI use.
+- Never require system Python or system MPV for installed users.
+- Never log screen contents, clipboard text, keystrokes, passcodes, pairing secrets, or other sensitive phone payloads.
+- Phone-changing setup actions require explicit user confirmation for each action.
+- Keep README credits and applicable license notices intact.
+- Credit the original repository/author and `@TomerGamerTV` without implying endorsement.
+- Keep `TODO.md`, `FIXES.md`, and `PLAN.md` current as work progresses.
+- Never mark a feature complete until its stated validation succeeds.
+- Do not silently switch an active session between USB and Wi-Fi.
+- Explicit USB mode must never silently fall back to Wi-Fi.
+- Release all active touch/keyboard state on focus loss, disconnect, worker failure, and shutdown.
+- A failed HID event may trigger reconnection only on a later fresh user action; never replay the event that failed.
+- Keep WPF shutdown cleanup centralized in the `Closing` path. Control-pipe `stop` should request window close; it must not race a second session cleanup/close path.
+- When async WPF closing cleanup is complete, queue the final allowed `Close()` onto the dispatcher so it executes after the cancelled closing event returns.
+- Run worker tests against the bundled/private Python runtime as a script from the worker layout; do not depend on `worker/` being an importable package.
