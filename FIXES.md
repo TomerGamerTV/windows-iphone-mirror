@@ -549,3 +549,9 @@ et10.0 and emits the Windows target framework itself.
 - Change: transient `stream_timeout`, `stream_ended`, `player_disconnected`, and connection failures now trigger up to three delayed WPF reconnect attempts while preserving the selected transport and device.
 - Validation: the published `network-retry` fake-worker smoke injected a first-attempt `stream_timeout`, observed the app return to `running` with exactly one GUI process, and then stopped cleanly. Release build completed with 0 warnings/errors; worker tests remain 28/28.
 - Limitation: physical network-link interruption still requires a controlled adapter or link-change test; the retry path is bounded and does not retry setup-state errors.
+
+## 2026-09-20 — MPV relay shutdown race and Windows PowerShell smoke compatibility
+
+- Symptom: manual reconnect could reach `running` but terminate the WPF process during shutdown with a CLR `NullReferenceException`; the fake-worker verifier also required PowerShell 7 because it used newer `ProcessStartInfo` and `Process.Kill` overloads.
+- Fix: capture stable MPV pipe/process references before awaiting, ignore expected pipe-disposal exceptions during relay cleanup, use the legacy `Arguments` property for the verifier, and terminate test process trees with Windows `taskkill`.
+- Validation: release build passed with 0 warnings/errors. The complete nine-mode WPF matrix passed under Windows PowerShell 5, including manual reconnect and automatic network retry, with every GUI exit code equal to 0.

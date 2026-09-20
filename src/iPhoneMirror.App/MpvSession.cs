@@ -70,15 +70,20 @@ internal sealed class MpvSession : IAsyncDisposable
 
     private async Task RelayAsync(CancellationToken cancellationToken)
     {
-        if (_videoPipe is null || _process is null) return;
+        // Capture both objects before the first await. DisposeAsync may clear
+        // the fields while this relay is waiting for MPV to connect.
+        var videoPipe = _videoPipe;
+        var process = _process;
+        if (videoPipe is null || process is null) return;
         try
         {
-            await _videoPipe.WaitForConnectionAsync(cancellationToken);
-            await _videoPipe.CopyToAsync(_process.StandardInput.BaseStream, 128 * 1024, cancellationToken);
-            await _process.StandardInput.BaseStream.FlushAsync(cancellationToken);
+            await videoPipe.WaitForConnectionAsync(cancellationToken);
+            await videoPipe.CopyToAsync(process.StandardInput.BaseStream, 128 * 1024, cancellationToken);
+            await process.StandardInput.BaseStream.FlushAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (IOException) { }
+        catch (ObjectDisposedException) { }
     }
 
     private static async Task DrainAsync(StreamReader reader, CancellationToken cancellationToken)
@@ -107,7 +112,10 @@ internal sealed class MpvSession : IAsyncDisposable
         }
         if (_relayTask is not null)
         {
-            try { await _relayTask; } catch (OperationCanceledException) { }
+            try { await _relayTask; }
+            catch (OperationCanceledException) { }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
         }
         _lifetime.Dispose();
     }

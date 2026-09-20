@@ -23,16 +23,23 @@ if (Get-Process -Name iPhoneMirror -ErrorAction SilentlyContinue) {
     throw "Stop every iPhoneMirror.exe process before running the fake-worker WPF smoke test."
 }
 
+function Stop-TestProcessTree([Diagnostics.Process]$Process) {
+    if ($Process.HasExited) { return }
+    # Process.Kill(bool) is unavailable in Windows PowerShell 5.x. taskkill
+    # provides the same tree termination behavior on supported Windows hosts.
+    & taskkill.exe /PID ([string]$Process.Id) /T /F 2>$null | Out-Null
+    $Process.WaitForExit()
+}
+
 $guiInfo = [Diagnostics.ProcessStartInfo]::new()
 $guiInfo.FileName = $guiPath
 $guiInfo.WorkingDirectory = Split-Path -Parent $guiPath
 $guiInfo.UseShellExecute = $false
 $guiInfo.CreateNoWindow = $true
-$guiInfo.ArgumentList.Add("start")
-$guiInfo.ArgumentList.Add("--connection")
-$guiInfo.ArgumentList.Add("usb")
-$guiInfo.ArgumentList.Add("--serial")
-$guiInfo.ArgumentList.Add("fake-wpf-device")
+# Use the legacy Arguments property so this verifier also runs under the
+# Windows PowerShell 5.x that ships with Windows 11. ArgumentList only exists
+# on newer .NET ProcessStartInfo implementations.
+$guiInfo.Arguments = 'start --connection usb --serial fake-wpf-device'
 $guiInfo.Environment["IPHONE_MIRROR_TEST_MODE"] = "1"
 $guiInfo.Environment["IPHONE_MIRROR_TEST_PYTHON"] = $pythonPath
 $guiInfo.Environment["IPHONE_MIRROR_TEST_WORKER"] = $workerPath
@@ -142,7 +149,7 @@ try {
     $stopExit = $LASTEXITCODE
     if ($stopExit -ne 0) { throw "Secondary stop command exited with $stopExit." }
     if (-not $guiProcess.WaitForExit(15000)) {
-        $guiProcess.Kill($true)
+        Stop-TestProcessTree $guiProcess
         throw "WPF process did not exit after stop command."
     }
 
@@ -168,7 +175,6 @@ try {
 }
 finally {
     if (-not $guiProcess.HasExited) {
-        $guiProcess.Kill($true)
-        $guiProcess.WaitForExit()
+        Stop-TestProcessTree $guiProcess
     }
 }
