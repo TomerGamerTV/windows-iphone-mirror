@@ -21,6 +21,12 @@ if (Get-Process -Name iPhoneMirror -ErrorAction SilentlyContinue) {
     throw "Stop every iPhoneMirror.exe process before running isolated installer verification."
 }
 
+function Stop-InstallerTestProcess([Diagnostics.Process]$Process) {
+    if ($Process.HasExited) { return }
+    & taskkill.exe /PID ([string]$Process.Id) /T /F 2>$null | Out-Null
+    $Process.WaitForExit()
+}
+
 $installDir = Join-Path $checkRoot "install"
 $logPath = Join-Path $checkRoot "uninstall.log"
 
@@ -68,7 +74,7 @@ try {
     $cliProcess.StartInfo = $cliInfo
     [void]$cliProcess.Start()
     if (-not $cliProcess.WaitForExit(15000)) {
-        $cliProcess.Kill($true)
+        Stop-InstallerTestProcess $cliProcess
         throw "Installed CLI did not exit within 15 seconds."
     }
     $cliOutput = $cliProcess.StandardOutput.ReadToEnd().Trim()

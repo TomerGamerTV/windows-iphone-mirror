@@ -555,3 +555,8 @@ et10.0 and emits the Windows target framework itself.
 - Symptom: manual reconnect could reach `running` but terminate the WPF process during shutdown with a CLR `NullReferenceException`; the fake-worker verifier also required PowerShell 7 because it used newer `ProcessStartInfo` and `Process.Kill` overloads.
 - Fix: capture stable MPV pipe/process references before awaiting, ignore expected pipe-disposal exceptions during relay cleanup, use the legacy `Arguments` property for the verifier, and terminate test process trees with Windows `taskkill`.
 - Validation: release build passed with 0 warnings/errors. The complete nine-mode WPF matrix passed under Windows PowerShell 5, including manual reconnect and automatic network retry, with every GUI exit code equal to 0.
+
+## 2026-09-20 — Installer verifier PowerShell 5 compatibility
+
+- Fix: replaced the remaining `Process.Kill(bool)` call in the isolated installer verifier with Windows `taskkill` tree cleanup, so the documented verifier works with the default Windows PowerShell host.
+- Validation: first install, in-place update, restricted-PATH bundled CLI status, silent uninstall, and install-directory removal all passed under Windows PowerShell 5.

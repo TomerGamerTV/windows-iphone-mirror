@@ -4,7 +4,7 @@ Legend: `[ ]` not started, `[-]` implemented/in progress but not fully accepted,
 
 ## 1. Project skeleton and Windows architecture
 - [x] Create .NET 10 WPF/Core/CLI/Test projects and worker layout. Validation: Release solution build succeeds with 0 warnings/errors.
-- [-] Define newline-delimited JSON worker protocol and process supervision. Validation: installed GUI/CLI lifecycle works; fake-worker protocol/process-death coverage and the published WPF startup/restart/stop/reconnect smoke pass, while real network interruption remains incomplete.
+- [-] Define newline-delimited JSON worker protocol and process supervision. Validation: installed GUI/CLI lifecycle works; fake-worker protocol/process-death coverage and the published WPF startup/restart/stop/reconnect/network-retry smoke pass, while real network interruption remains incomplete.
 - [!] Remove obsolete Linux structure only after replacement paths and physical-iPhone acceptance are verified.
 
 ## 2. Core worker
