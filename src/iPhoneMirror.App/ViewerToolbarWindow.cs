@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using System.Windows.Automation;
 
 namespace iPhoneMirror.App;
@@ -32,13 +33,13 @@ public sealed class ViewerToolbarWindow : Window
 
         var panel = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(230, 23, 26, 29)),
             CornerRadius = new CornerRadius(16),
             Padding = new Thickness(6),
         };
+        panel.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight };
-        buttons.Children.Add(CreateButton("⌂", "Home Screen", "home"));
-        buttons.Children.Add(CreateButton("▥", "App Switcher", "app_switcher"));
+        buttons.Children.Add(CreateButton(CreateHomeIcon(), "Home Screen", "home"));
+        buttons.Children.Add(CreateButton(CreateAppSwitcherIcon(), "App Switcher", "app_switcher"));
         panel.Child = buttons;
         Content = panel;
     }
@@ -56,24 +57,63 @@ public sealed class ViewerToolbarWindow : Window
             Reposition(owner.MpvHost);
     }
 
-    private Button CreateButton(string glyph, string tooltip, string action)
+    private Button CreateButton(UIElement icon, string tooltip, string action)
     {
         var button = new Button
         {
-            Content = glyph,
+            Content = icon,
             Width = 34,
             Height = 36,
             Margin = new Thickness(0, 0, action == "home" ? 4 : 0, 0),
             ToolTip = tooltip,
-            FontFamily = new FontFamily("Segoe UI Symbol"),
-            FontSize = 20,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromRgb(51, 46, 42)),
             BorderThickness = new Thickness(0),
             Cursor = System.Windows.Input.Cursors.Hand,
         };
+        button.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        button.SetResourceReference(Control.BackgroundProperty, "SurfaceAltBrush");
         AutomationProperties.SetName(button, tooltip);
         button.Click += (_, _) => ActionRequested?.Invoke(this, action);
         return button;
+    }
+
+    private static Path CreateHomeIcon()
+    {
+        var path = new Path
+        {
+            Width = 18,
+            Height = 18,
+            Stretch = Stretch.None,
+            Data = Geometry.Parse("M 1,8 L 9,1 L 17,8 M 2,7 L 2,17 L 16,17 L 16,7 M 7,17 L 7,11 L 11,11 L 11,17"),
+            StrokeThickness = 2,
+            StrokeLineJoin = PenLineJoin.Round,
+        };
+        path.SetResourceReference(Shape.StrokeProperty, "TextBrush");
+        return path;
+    }
+
+    private static Canvas CreateAppSwitcherIcon()
+    {
+        var canvas = new Canvas { Width = 18, Height = 18 };
+        for (var row = 0; row < 2; row++)
+        {
+            for (var column = 0; column < 2; column++)
+            {
+                var cell = new Rectangle { Width = 7, Height = 7, RadiusX = 1, RadiusY = 1 };
+                cell.SetResourceReference(Shape.FillProperty, "TextBrush");
+                Canvas.SetLeft(cell, column * 11);
+                Canvas.SetTop(cell, row * 11);
+                canvas.Children.Add(cell);
+            }
+        }
+        return canvas;
+    }
+}
+
+internal static class ViewerIconExtensions
+{
+    public static Path WithResourceFill(this Path path, string resourceKey)
+    {
+        path.SetResourceReference(Shape.FillProperty, resourceKey);
+        return path;
     }
 }
