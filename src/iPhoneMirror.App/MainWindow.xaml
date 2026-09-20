@@ -50,6 +50,7 @@
                     <Button x:Name="ConnectButton" Content="Connect" Click="ConnectButton_Click" Background="{DynamicResource AccentBrush}"
                             AutomationProperties.Name="Connect iPhone" />
                     <Button Content="Setup" Click="SetupButton_Click" AutomationProperties.Name="Open phone setup" />
+                    <Button x:Name="SettingsButton" Content="Settings" Click="SettingsButton_Click" AutomationProperties.Name="Open settings" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -60,7 +61,7 @@
                 <ColumnDefinition x:Name="SetupColumn" Width="0" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="#08090A" CornerRadius="14" ClipToBounds="True"
+            <Border Grid.Column="0" Background="#08090A" CornerRadius="14" ClipToBounds="True" BorderBrush="{DynamicResource GlassBorderBrush}" BorderThickness="1"
                     AutomationProperties.Name="iPhone screen viewer">
                 <Grid>
                     <local:MpvHostControl x:Name="MpvHost" AutomationProperties.Name="Mirrored iPhone screen" />
@@ -76,25 +77,110 @@
                 </Grid>
             </Border>
 
-            <Border x:Name="SetupPanel" Grid.Column="1" Width="330" Margin="10,0,0,0" Padding="16"
-                    Background="{DynamicResource SurfaceBrush}" CornerRadius="12" Visibility="Collapsed">
+            <Border x:Name="SetupPanel" Grid.Column="1" Width="340" Margin="10,0,0,0" Padding="16"
+                    Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassBorderBrush}" BorderThickness="1"
+                    CornerRadius="14" Visibility="Collapsed">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <DockPanel>
-                            <TextBlock Text="Phone setup" FontSize="20" FontWeight="SemiBold" DockPanel.Dock="Left" />
+                        <DockPanel Margin="0,0,0,10">
+                            <TextBlock x:Name="PanelTitle" Text="Setup &amp; Settings" FontSize="18" FontWeight="SemiBold" DockPanel.Dock="Left" />
                             <Button Content="Close" Click="CloseSetupButton_Click" DockPanel.Dock="Right" AutomationProperties.Name="Close phone setup" />
                         </DockPanel>
-                        <TextBlock Margin="0,8,0,12" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
-                                   Text="Each action that changes the phone or pairing records asks for confirmation first. Passcodes stay on the iPhone." />
-                        <Button Content="Refresh USB devices" Click="RefreshDevicesButton_Click" AutomationProperties.Name="Refresh USB devices" />
-                        <Button Content="Check setup" Click="CheckSetupButton_Click" AutomationProperties.Name="Check iPhone setup" />
-                        <Button Content="Trust this computer" Click="PairUsbButton_Click" AutomationProperties.Name="Trust this computer" />
-                        <Button Content="Reveal Developer Mode" Click="RevealDeveloperModeButton_Click" AutomationProperties.Name="Reveal Developer Mode" />
-                        <Button Content="Prepare developer image" Click="PrepareImageButton_Click" AutomationProperties.Name="Prepare developer image" />
-                        <Button Content="Pair Wi-Fi" Click="PairWifiButton_Click" AutomationProperties.Name="Pair iPhone for Wi-Fi" />
-                        <Button Content="Validate display service" Click="CheckDisplayButton_Click" AutomationProperties.Name="Validate display service" />
-                        <TextBlock x:Name="SetupStatusText" Margin="4,12,4,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
-                                   AutomationProperties.Name="Setup status" AutomationProperties.LiveSetting="Polite" />
+
+                        <!-- Tab switcher -->
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="TabPhoneSetupBtn" Content="Phone Setup" Click="TabPhoneSetup_Click" Background="{DynamicResource AccentBrush}" Grid.Column="0" Margin="0,0,2,0" />
+                            <Button x:Name="TabSettingsBtn" Content="Settings" Click="TabSettings_Click" Background="{DynamicResource SurfaceAltBrush}" Grid.Column="1" Margin="2,0,0,0" />
+                        </Grid>
+
+                        <!-- Phone Setup Tab View -->
+                        <StackPanel x:Name="PhoneSetupSection" Visibility="Visible">
+                            <TextBlock Margin="0,0,0,12" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="Each action that changes the phone or pairing records asks for confirmation first. Passcodes stay on the iPhone." />
+                            <Button Content="Refresh USB devices" Click="RefreshDevicesButton_Click" AutomationProperties.Name="Refresh USB devices" Margin="0,3" HorizontalAlignment="Stretch" />
+                            <Button Content="Check setup" Click="CheckSetupButton_Click" AutomationProperties.Name="Check iPhone setup" Margin="0,3" HorizontalAlignment="Stretch" />
+                            <Button Content="Trust this computer" Click="PairUsbButton_Click" AutomationProperties.Name="Trust this computer" Margin="0,3" HorizontalAlignment="Stretch" />
+                            <Button Content="Reveal Developer Mode" Click="RevealDeveloperModeButton_Click" AutomationProperties.Name="Reveal Developer Mode" Margin="0,3" HorizontalAlignment="Stretch" />
+                            <Button Content="Prepare developer image" Click="PrepareImageButton_Click" AutomationProperties.Name="Prepare developer image" Margin="0,3" HorizontalAlignment="Stretch" />
+                            <Button Content="Pair Wi-Fi" Click="PairWifiButton_Click" AutomationProperties.Name="Pair iPhone for Wi-Fi" Margin="0,3" HorizontalAlignment="Stretch" />
+                            <Button Content="Validate display service" Click="CheckDisplayButton_Click" AutomationProperties.Name="Validate display service" Margin="0,3" HorizontalAlignment="Stretch" />
+                            <TextBlock x:Name="SetupStatusText" Margin="4,12,4,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
+                                       AutomationProperties.Name="Setup status" AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+
+                        <!-- Settings & Preferences Tab View -->
+                        <StackPanel x:Name="SettingsSection" Visibility="Collapsed">
+                            <!-- Video & Performance -->
+                            <TextBlock Text="VIDEO &amp; PERFORMANCE" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}" Margin="0,2,0,6" />
+                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <CheckBox x:Name="HwDecodeBox" Content="Hardware acceleration (GPU decoding)" IsChecked="True"
+                                              Checked="HwDecode_Changed" Unchecked="HwDecode_Changed" AutomationProperties.Name="Hardware acceleration" />
+                                    <TextBlock Text="Uses GPU decoding for lowest latency. Disable if your display driver exhibits glitches."
+                                               FontSize="11" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="20,2,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Window & Glass Backdrop -->
+                            <TextBlock Text="WINDOW &amp; GLASS BACKDROP" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}" Margin="0,2,0,6" />
+                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <CheckBox x:Name="AlwaysOnTopBox" Content="Keep window always on top"
+                                              Checked="AlwaysOnTop_Changed" Unchecked="AlwaysOnTop_Changed" AutomationProperties.Name="Always on top" />
+                                    <TextBlock Text="Floating mirror mode while multitasking." FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Margin="20,2,0,8" />
+
+                                    <TextBlock Text="Backdrop Effect (Windows 11):" FontSize="11" Margin="0,2,0,4" />
+                                    <ComboBox x:Name="BackdropBox" SelectedIndex="0" SelectionChanged="BackdropBox_SelectionChanged" AutomationProperties.Name="Backdrop effect">
+                                        <ComboBoxItem Content="Mica (Subtle desktop sheen)" Tag="Mica" />
+                                        <ComboBoxItem Content="Acrylic (Frosted translucent blur)" Tag="Acrylic" />
+                                        <ComboBoxItem Content="Mica Alt (Tabbed tint)" Tag="MicaAlt" />
+                                        <ComboBoxItem Content="Solid (Classic opaque)" Tag="None" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Window Sizing Presets -->
+                            <TextBlock Text="WINDOW SIZING PRESETS" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}" Margin="0,2,0,6" />
+                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="10" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Content="Compact 75%" Click="Scale75_Click" Grid.Column="0" Margin="2,0" Padding="4,6" FontSize="11" AutomationProperties.Name="Scale 75%" />
+                                    <Button Content="Actual 100%" Click="Scale100_Click" Grid.Column="1" Margin="2,0" Padding="4,6" FontSize="11" AutomationProperties.Name="Scale 100%" />
+                                    <Button Content="Large 125%" Click="Scale125_Click" Grid.Column="2" Margin="2,0" Padding="4,6" FontSize="11" AutomationProperties.Name="Scale 125%" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Keyboard Shortcuts Reference -->
+                            <TextBlock Text="KEYBOARD SHORTCUTS" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}" Margin="0,2,0,6" />
+                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="12">
+                                <StackPanel>
+                                    <DockPanel Margin="0,2">
+                                        <TextBlock Text="Ctrl + 1" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" DockPanel.Dock="Left" Width="70" />
+                                        <TextBlock Text="Go to Home Screen" Foreground="{DynamicResource MutedTextBrush}" />
+                                    </DockPanel>
+                                    <DockPanel Margin="0,2">
+                                        <TextBlock Text="Ctrl + 2" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" DockPanel.Dock="Left" Width="70" />
+                                        <TextBlock Text="Open App Switcher" Foreground="{DynamicResource MutedTextBrush}" />
+                                    </DockPanel>
+                                    <DockPanel Margin="0,2">
+                                        <TextBlock Text="Ctrl + 3" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" DockPanel.Dock="Left" Width="70" />
+                                        <TextBlock Text="Open Spotlight Search" Foreground="{DynamicResource MutedTextBrush}" />
+                                    </DockPanel>
+                                    <DockPanel Margin="0,2">
+                                        <TextBlock Text="Ctrl + V" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" DockPanel.Dock="Left" Width="70" />
+                                        <TextBlock Text="Paste text to iPhone" Foreground="{DynamicResource MutedTextBrush}" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Border>

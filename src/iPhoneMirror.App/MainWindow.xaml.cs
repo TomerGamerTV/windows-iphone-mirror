@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private bool _automaticReconnect;
     private readonly HashSet<int> _heldUsages = [];
     private readonly HashSet<Key> _suppressedPasteKeys = [];
+    private BackdropType _currentBackdrop = BackdropType.Mica;
 
     public MainWindow(CommandLineOptions launchOptions)
     {
@@ -45,7 +46,7 @@ public partial class MainWindow : Window
         WifiAddressBox.Text = _settings.WifiAddress ?? string.Empty;
         WifiPortBox.Text = _settings.WifiPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
         Loaded += MainWindow_Loaded;
-        SourceInitialized += (_, _) => NativeTheme.Apply(this);
+        SourceInitialized += (_, _) => NativeTheme.Apply(this, _currentBackdrop);
         Deactivated += async (_, _) => await ReleaseInputAsync();
         Closing += MainWindow_Closing;
         PreviewKeyDown += MainWindow_PreviewKeyDown;
@@ -71,7 +72,8 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        NativeTheme.Apply(this);
+        NativeTheme.Apply(this, _currentBackdrop);
+        HwDecodeBox.IsChecked = _settings.PreferHardwareDecode;
         _viewerToolbarWindow ??= new ViewerToolbarWindow(this);
         _viewerToolbarWindow.ActionRequested += ViewerToolbarWindow_ActionRequested;
         await RefreshDevicesAsync();
@@ -79,7 +81,7 @@ public partial class MainWindow : Window
     }
 
     private void SystemEvents_UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e) =>
-        Dispatcher.Invoke(() => NativeTheme.Apply(this));
+        Dispatcher.Invoke(() => NativeTheme.Apply(this, _currentBackdrop));
 
     private void SelectConnectionMode(ConnectionMode mode)
     {
@@ -753,8 +755,93 @@ public partial class MainWindow : Window
     private async void DisconnectButton_Click(object sender, RoutedEventArgs e) => await StopSessionAsync();
     private void HomeButton_Click(object sender, RoutedEventArgs e) { if (_worker is not null && _sessionActive) _ = _worker.SendCommandNoWaitAsync("home"); }
     private void SpotlightButton_Click(object sender, RoutedEventArgs e) { if (_worker is not null && _sessionActive) _ = _worker.SendCommandNoWaitAsync("spotlight"); }
-    private void SetupButton_Click(object sender, RoutedEventArgs e) { SetupColumn.Width = new GridLength(340); SetupPanel.Visibility = Visibility.Visible; }
-    private void CloseSetupButton_Click(object sender, RoutedEventArgs e) { SetupPanel.Visibility = Visibility.Collapsed; SetupColumn.Width = new GridLength(0); }
+    private void SetupButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetupColumn.Width = new GridLength(350);
+        SetupPanel.Visibility = Visibility.Visible;
+        TabPhoneSetup_Click(sender, e);
+    }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetupColumn.Width = new GridLength(350);
+        SetupPanel.Visibility = Visibility.Visible;
+        TabSettings_Click(sender, e);
+    }
+
+    private void CloseSetupButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetupPanel.Visibility = Visibility.Collapsed;
+        SetupColumn.Width = new GridLength(0);
+    }
+
+    private void TabPhoneSetup_Click(object sender, RoutedEventArgs e)
+    {
+        PhoneSetupSection.Visibility = Visibility.Visible;
+        SettingsSection.Visibility = Visibility.Collapsed;
+        TabPhoneSetupBtn.SetResourceReference(Control.BackgroundProperty, "AccentBrush");
+        TabSettingsBtn.SetResourceReference(Control.BackgroundProperty, "SurfaceAltBrush");
+        PanelTitle.Text = "Phone Setup";
+    }
+
+    private void TabSettings_Click(object sender, RoutedEventArgs e)
+    {
+        PhoneSetupSection.Visibility = Visibility.Collapsed;
+        SettingsSection.Visibility = Visibility.Visible;
+        TabSettingsBtn.SetResourceReference(Control.BackgroundProperty, "AccentBrush");
+        TabPhoneSetupBtn.SetResourceReference(Control.BackgroundProperty, "SurfaceAltBrush");
+        PanelTitle.Text = "Settings & Preferences";
+    }
+
+    private void HwDecode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded)
+        {
+            _settings.PreferHardwareDecode = HwDecodeBox.IsChecked == true;
+            SettingsStore.Save(_paths.SettingsFile, _settings);
+        }
+    }
+
+    private void AlwaysOnTop_Changed(object sender, RoutedEventArgs e)
+    {
+        Topmost = AlwaysOnTopBox.IsChecked == true;
+    }
+
+    private void BackdropBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded && BackdropBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
+            _currentBackdrop = tag switch
+            {
+                "Acrylic" => BackdropType.Acrylic,
+                "MicaAlt" => BackdropType.MicaAlt,
+                "None" => BackdropType.None,
+                _ => BackdropType.Mica,
+            };
+            NativeTheme.Apply(this, _currentBackdrop);
+            if (_viewerToolbarWindow is not null)
+                NativeTheme.Apply(_viewerToolbarWindow, _currentBackdrop);
+        }
+    }
+
+    private void Scale75_Click(object sender, RoutedEventArgs e)
+    {
+        Width = 740;
+        Height = 650;
+    }
+
+    private void Scale100_Click(object sender, RoutedEventArgs e)
+    {
+        Width = 920;
+        Height = 820;
+    }
+
+    private void Scale125_Click(object sender, RoutedEventArgs e)
+    {
+        Width = 1150;
+        Height = 980;
+    }
+
     private async void RefreshDevicesButton_Click(object sender, RoutedEventArgs e) => await RefreshDevicesAsync();
     private async void CheckSetupButton_Click(object sender, RoutedEventArgs e) => await RunSetupActionAsync("check", false);
     private async void PairUsbButton_Click(object sender, RoutedEventArgs e) => await RunSetupActionAsync("pair-usb", true);
