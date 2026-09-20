@@ -543,3 +543,9 @@ et10.0 and emits the Windows target framework itself.
 - Fix: the same opt-in timing log now records video frames entering and leaving the HEVC named-pipe sink, including queue depth and pipe-write duration. It remains disabled by default and all diagnostic file errors are ignored.
 - Validation: five more live Wi-Fi open/back cycles completed. The worker-to-MPV sink stayed at queue depth 0–1 and each recorded pipe write completed in about 0.006–0.015 ms, with no accumulating backlog. Worker tests pass 28/28.
 - Interpretation: the current worker video sink is not building a visible multi-frame queue during the tested interactions. The unresolved portion is MPV decode/presentation or the external observation path, so the 30-item startup-safe queue remains unchanged.
+
+## 2026-09-20 — Bounded automatic reconnect after transient stream failure
+
+- Change: transient `stream_timeout`, `stream_ended`, `player_disconnected`, and connection failures now trigger up to three delayed WPF reconnect attempts while preserving the selected transport and device.
+- Validation: the published `network-retry` fake-worker smoke injected a first-attempt `stream_timeout`, observed the app return to `running` with exactly one GUI process, and then stopped cleanly. Release build completed with 0 warnings/errors; worker tests remain 28/28.
+- Limitation: physical network-link interruption still requires a controlled adapter or link-change test; the retry path is bounded and does not retry setup-state errors.

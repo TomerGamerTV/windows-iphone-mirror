@@ -89,7 +89,7 @@ for line in sys.stdin:
                 "developer-mode": "developer_mode_required",
             }[MODE]
             event("state", {"state": "error", "error_code": error_code, "serial": "fake-wpf-device"})
-        elif MODE == "error" or (MODE == "reconnect" and START_COUNT == 1):
+        elif MODE == "error" or (MODE == "network-retry" and START_COUNT == 1):
             time.sleep(0.5)
             event("state", {"state": "error", "error_code": "stream_timeout", "serial": "fake-wpf-device"})
         elif MODE == "crash":

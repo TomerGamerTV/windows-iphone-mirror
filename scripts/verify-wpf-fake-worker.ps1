@@ -3,7 +3,7 @@ param(
     [string]$Cli = "artifacts\publish\win-x64\iphone-mirror.exe",
     [string]$Python = "artifacts\publish\win-x64\runtime\python\python.exe",
     [string]$Worker = "scripts\fake-worker-wpf-smoke.py",
-    [ValidateSet("normal", "error", "crash", "reconnect", "missing-stack", "locked", "untrusted", "developer-mode")]
+[ValidateSet("normal", "error", "crash", "reconnect", "network-retry", "missing-stack", "locked", "untrusted", "developer-mode")]
     [string]$Mode = "normal"
 )
 
@@ -56,7 +56,7 @@ try {
     }
 
     $faultState = $null
-    if ($Mode -ne "normal") {
+    if ($Mode -notin @("normal", "network-retry")) {
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             Start-Sleep -Milliseconds 250
             try {
@@ -96,6 +96,20 @@ try {
         }
         $reconnectProcessCount = @(Get-Process -Name iPhoneMirror -ErrorAction SilentlyContinue).Count
         if ($reconnectProcessCount -ne 1) { throw "Reconnect created an unexpected process count: $reconnectProcessCount" }
+    }
+    if ($Mode -eq "network-retry") {
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            Start-Sleep -Milliseconds 250
+            try {
+                $reconnectState = & $cliPath status 2>$null | ConvertFrom-Json
+                if ($reconnectState.state -eq "running") { break }
+            } catch { }
+        }
+        if ($null -eq $reconnectState -or $reconnectState.state -ne "running") {
+            throw "Automatic network retry did not return the fake-worker GUI to running state."
+        }
+        $reconnectProcessCount = @(Get-Process -Name iPhoneMirror -ErrorAction SilentlyContinue).Count
+        if ($reconnectProcessCount -ne 1) { throw "Automatic retry created an unexpected process count: $reconnectProcessCount" }
     }
 
     $restartExit = 0

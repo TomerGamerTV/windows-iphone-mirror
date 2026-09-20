@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private double _sourceHeight = 844;
     private bool _touchActive;
     private bool _sessionActive;
+    private bool _sessionRunning;
     private bool _stopping;
     private bool _closing;
     private bool _allowClose;
@@ -28,6 +29,7 @@ public partial class MainWindow : Window
     private readonly System.Windows.Threading.DispatcherTimer _viewerToolbarTimer;
     private readonly System.Windows.Threading.DispatcherTimer _inputOverlayTimer;
     private ViewerToolbarWindow? _viewerToolbarWindow;
+    private bool _automaticReconnect;
     private readonly HashSet<int> _heldUsages = [];
     private readonly HashSet<Key> _suppressedPasteKeys = [];
 
@@ -275,11 +277,13 @@ public partial class MainWindow : Window
         {
             case "starting":
                 _lastErrorCode = null;
+                _sessionRunning = false;
                 StatusText.Text = "Starting display stream…";
                 DeviceStatusText.Text = transport is null ? "Connecting" : $"Connecting over {transport.ToUpperInvariant()}";
                 break;
             case "running":
                 _lastErrorCode = null;
+                _sessionRunning = true;
                 StatusText.Text = "Connected";
                 DeviceStatusText.Text = transport is null ? "Live" : $"Live · {transport.ToUpperInvariant()}";
                 EmptyOverlay.Visibility = Visibility.Collapsed;
@@ -291,14 +295,27 @@ public partial class MainWindow : Window
                 StatusText.Text = "Disconnecting…";
                 break;
             case "stopped":
+                _sessionRunning = false;
                 await ClearSessionResourcesAsync();
                 StatusText.Text = "Disconnected";
                 EmptyOverlay.Visibility = Visibility.Visible;
                 ConnectionDot.Fill = (Brush)FindResource("MutedTextBrush");
                 break;
             case "error":
+                var wasRunning = _sessionRunning || _sessionActive;
+                _sessionRunning = false;
+                var errorCode = e.Data.TryGetProperty("error_code", out var codeValue)
+                    ? codeValue.GetString() ?? "connection_failed"
+                    : "connection_failed";
                 await ClearSessionResourcesAsync();
-                SetError(e.Data.TryGetProperty("error_code", out var codeValue) ? codeValue.GetString() : "connection_failed");
+                if (wasRunning && IsTransientSessionError(errorCode))
+                {
+                    StartAutomaticReconnect(errorCode);
+                }
+                else
+                {
+                    SetError(errorCode);
+                }
                 break;
         }
     }
@@ -306,6 +323,7 @@ public partial class MainWindow : Window
     private async Task ClearSessionResourcesAsync()
     {
         _touchActive = false;
+        _sessionRunning = false;
         _heldUsages.Clear();
         _suppressedPasteKeys.Clear();
         _sessionActive = false;
@@ -326,6 +344,50 @@ public partial class MainWindow : Window
         EmptyMessage.Text = message;
         EmptyOverlay.Visibility = Visibility.Visible;
         ConnectionDot.Fill = (Brush)FindResource("DangerBrush");
+    }
+
+    private static bool IsTransientSessionError(string code) => code is
+        "stream_timeout" or "stream_ended" or "player_disconnected" or
+        "connection_failed" or "worker_crashed";
+
+    private void StartAutomaticReconnect(string errorCode)
+    {
+        if (_automaticReconnect || _closing) return;
+        _automaticReconnect = true;
+        _ = AutomaticReconnectAsync(errorCode);
+    }
+
+    private async Task AutomaticReconnectAsync(string errorCode)
+    {
+        try
+        {
+            for (var attempt = 0; attempt < 3 && !_closing; attempt++)
+            {
+                StatusText.Text = $"Connection lost; reconnecting ({attempt + 1}/3)…";
+                EmptyMessage.Text = "The display stream was interrupted. Retrying…";
+                EmptyOverlay.Visibility = Visibility.Visible;
+                ConnectionDot.Fill = (Brush)FindResource("DangerBrush");
+                await Task.Delay(TimeSpan.FromMilliseconds(500 * (attempt + 1)));
+                if (_closing) return;
+                await ConnectAsync();
+
+                for (var wait = 0; wait < 40 && !_closing; wait++)
+                {
+                    if (_sessionRunning) return;
+                    if (!_sessionActive) break;
+                    await Task.Delay(250);
+                }
+            }
+            if (!_closing) SetError(errorCode);
+        }
+        catch (Exception) when (!_closing)
+        {
+            SetError(errorCode);
+        }
+        finally
+        {
+            _automaticReconnect = false;
+        }
     }
 
     private async void ReassertInputOverlayZOrder()

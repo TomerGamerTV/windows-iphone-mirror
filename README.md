@@ -195,6 +195,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-wpf-fake-work
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-wpf-fake-worker.ps1 -Mode error
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-wpf-fake-worker.ps1 -Mode crash
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-wpf-fake-worker.ps1 -Mode reconnect
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-wpf-fake-worker.ps1 -Mode network-retry
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-wpf-fake-worker.ps1 -Mode missing-stack
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-wpf-fake-worker.ps1 -Mode locked
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-wpf-fake-worker.ps1 -Mode untrusted
