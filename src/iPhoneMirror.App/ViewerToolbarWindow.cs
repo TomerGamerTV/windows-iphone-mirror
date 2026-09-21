@@ -8,6 +8,11 @@ using System.Windows.Automation;
 
 namespace iPhoneMirror.App;
 
+/// <summary>
+/// macOS-style hover pill: traffic lights + Home + App Switcher + Settings.
+/// Icon-only, no text labels (fixes the "Mica Backdrop" white-on-white header).
+/// Separate top-level window so it renders above the embedded MPV HWND.
+/// </summary>
 public sealed class ViewerToolbarWindow : Window
 {
     public event EventHandler<string>? ActionRequested;
@@ -15,7 +20,7 @@ public sealed class ViewerToolbarWindow : Window
     public ViewerToolbarWindow(Window owner)
     {
         Owner = owner;
-        Width = 104;
+        Width = 272;
         Height = 52;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -37,7 +42,7 @@ public sealed class ViewerToolbarWindow : Window
         var panel = new Border
         {
             CornerRadius = new CornerRadius(18),
-            Padding = new Thickness(6, 4, 6, 4),
+            Padding = new Thickness(8, 4, 8, 4),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(4),
             Effect = new DropShadowEffect
@@ -52,16 +57,54 @@ public sealed class ViewerToolbarWindow : Window
         panel.SetResourceReference(Border.BackgroundProperty, "ToolbarGlassBrush");
         panel.SetResourceReference(Border.BorderBrushProperty, "GlassBorderBrush");
 
-        var buttons = new StackPanel
+        var row = new DockPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center,
+            LastChildFill = true,
+        };
+
+        var traffic = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            FlowDirection = FlowDirection.LeftToRight,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 8, 0),
+        };
+        traffic.Children.Add(CreateTrafficDot(Color.FromRgb(255, 95, 87), "Close", "close"));
+        traffic.Children.Add(CreateTrafficDot(Color.FromRgb(254, 188, 46), "Minimize", "minimize"));
+        DockPanel.SetDock(traffic, Dock.Left);
+        row.Children.Add(traffic);
+
+        var settingsBtn = CreateButton(CreateSettingsIcon(), "Settings", "settings");
+        DockPanel.SetDock(settingsBtn, Dock.Right);
+        row.Children.Add(settingsBtn);
+
+        var middle = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        buttons.Children.Add(CreateButton(CreateHomeIcon(), "Home Screen", "home"));
-        buttons.Children.Add(CreateButton(CreateAppSwitcherIcon(), "App Switcher", "app_switcher"));
-        panel.Child = buttons;
+        middle.Children.Add(CreateButton(CreateHomeIcon(), "Home Screen", "home"));
+        middle.Children.Add(CreateButton(CreateAppSwitcherIcon(), "App Switcher", "app_switcher"));
+        row.Children.Add(middle);
+
+        panel.Child = row;
+        // Drag the pill background to move the phone window (like macOS title drag).
+        // Never hijack presses that start on a button: DragMove captures the
+        // mouse and swallows the Click, which broke every pill button.
+        panel.MouseLeftButtonDown += (_, e) =>
+        {
+            for (DependencyObject? d = e.OriginalSource as DependencyObject; d is not null; d = VisualTreeHelper.GetParent(d))
+            {
+                if (d is ButtonBase) return;
+            }
+            if (Owner is not null && e.ButtonState == System.Windows.Input.MouseButtonState.Pressed)
+            {
+                try { Owner.DragMove(); } catch { }
+            }
+        };
         Content = panel;
     }
 
@@ -78,6 +121,47 @@ public sealed class ViewerToolbarWindow : Window
             Reposition(owner.MpvHost);
     }
 
+    private Button CreateTrafficDot(Color color, string tooltip, string action)
+    {
+        var dot = new Ellipse
+        {
+            Width = 12,
+            Height = 12,
+            Fill = new SolidColorBrush(color),
+            Stroke = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)),
+            StrokeThickness = 0.8,
+            Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.4, Color = Colors.Black },
+        };
+        var button = new Button
+        {
+            Content = dot,
+            Width = 22,
+            Height = 28,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0),
+            ToolTip = tooltip,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Focusable = false,
+        };
+        var template = new ControlTemplate(typeof(Button));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.Name = "ButtonChrome";
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        border.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+        var content = new FrameworkElementFactory(typeof(ContentPresenter));
+        content.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        content.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        border.AppendChild(content);
+        template.VisualTree = border;
+        var hoverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        hoverTrigger.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(45, 255, 255, 255)), "ButtonChrome"));
+        template.Triggers.Add(hoverTrigger);
+        button.Template = template;
+        AutomationProperties.SetName(button, tooltip);
+        button.Click += (_, _) => ActionRequested?.Invoke(this, action);
+        return button;
+    }
+
     private Button CreateButton(UIElement icon, string tooltip, string action)
     {
         var button = new Button
@@ -85,6 +169,7 @@ public sealed class ViewerToolbarWindow : Window
             Content = icon,
             Width = 38,
             Height = 36,
+            Padding = new Thickness(0),
             Margin = new Thickness(0, 0, action == "home" ? 6 : 0, 0),
             ToolTip = tooltip,
             Cursor = System.Windows.Input.Cursors.Hand,
@@ -170,5 +255,19 @@ public sealed class ViewerToolbarWindow : Window
         };
         path.SetResourceReference(Shape.StrokeProperty, "TextBrush");
         return path;
+    }
+
+    private static UIElement CreateSettingsIcon()
+    {
+        // Real cog glyph (the previous stroked circle+spokes read as a sun).
+        return new TextBlock
+        {
+            Text = "⚙",
+            FontFamily = new FontFamily("Segoe UI Symbol"),
+            FontSize = 17,
+            LineHeight = 18,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
     }
 }

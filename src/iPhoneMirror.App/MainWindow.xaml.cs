@@ -3,9 +3,9 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media;
-using iPhoneMirror.Core;
+using System.Windows.Media;using iPhoneMirror.Core;
 
 namespace iPhoneMirror.App;
 
@@ -32,7 +32,9 @@ public partial class MainWindow : Window
     private bool _automaticReconnect;
     private readonly HashSet<int> _heldUsages = [];
     private readonly HashSet<Key> _suppressedPasteKeys = [];
-    private BackdropType _currentBackdrop = BackdropType.Mica;
+    private BackdropType _currentBackdrop = BackdropType.Acrylic;
+    private bool _sheetDragArmed;
+    private Point _sheetDragStart;
 
     public MainWindow(CommandLineOptions launchOptions)
     {
@@ -41,6 +43,7 @@ public partial class MainWindow : Window
         _settings = SettingsStore.Load(_paths.SettingsFile);
         if (launchOptions.Connection is not null) _settings.Connection = launchOptions.Connection.Value;
         if (!string.IsNullOrWhiteSpace(launchOptions.Serial)) _settings.Serial = launchOptions.Serial;
+        _currentBackdrop = ParseBackdrop(_settings.Backdrop);
 
         InitializeComponent();
         WifiAddressBox.Text = _settings.WifiAddress ?? string.Empty;
@@ -74,14 +77,68 @@ public partial class MainWindow : Window
     {
         NativeTheme.Apply(this, _currentBackdrop);
         HwDecodeBox.IsChecked = _settings.PreferHardwareDecode;
+        AlwaysOnTopBox.IsChecked = _settings.AlwaysOnTop;
+        Topmost = _settings.AlwaysOnTop;
+        UpdateBackdropButtons();
         _viewerToolbarWindow ??= new ViewerToolbarWindow(this);
         _viewerToolbarWindow.ActionRequested += ViewerToolbarWindow_ActionRequested;
         await RefreshDevicesAsync();
         if (_launchOptions.Command is "start" or "restart") await ConnectAsync();
     }
 
+    private static BackdropType ParseBackdrop(string? name) => name switch
+    {
+        "Mica" => BackdropType.Mica,
+        "MicaAlt" => BackdropType.MicaAlt,
+        "None" or "Solid" => BackdropType.None,
+        _ => BackdropType.Acrylic,
+    };
+
+    private void ApplyBackdrop(BackdropType backdrop)
+    {
+        _currentBackdrop = backdrop;
+        _settings.Backdrop = backdrop switch
+        {
+            BackdropType.Mica => "Mica",
+            BackdropType.MicaAlt => "MicaAlt",
+            BackdropType.None => "Solid",
+            _ => "Acrylic",
+        };
+        SettingsStore.Save(_paths.SettingsFile, _settings);
+        NativeTheme.Apply(this, _currentBackdrop);
+        if (_viewerToolbarWindow is not null)
+            NativeTheme.Apply(_viewerToolbarWindow, _currentBackdrop);
+        UpdateBackdropButtons();
+    }
+
+    private void UpdateBackdropButtons()
+    {
+        if (!IsLoaded) return;
+        SetSegmentSelected(BackdropAcrylicBtn, _currentBackdrop == BackdropType.Acrylic);
+        SetSegmentSelected(BackdropMicaBtn, _currentBackdrop == BackdropType.Mica);
+        SetSegmentSelected(BackdropSolidBtn, _currentBackdrop == BackdropType.None);
+    }
+
+    private static void SetSegmentSelected(Button button, bool selected)
+    {
+        if (selected)
+        {
+            button.SetResourceReference(Control.BackgroundProperty, "AccentBrush");
+            button.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        }
+        else
+        {
+            button.SetResourceReference(Control.BackgroundProperty, "SegmentBrush");
+            button.SetResourceReference(Control.ForegroundProperty, "SegmentTextBrush");
+        }
+    }
+
     private void SystemEvents_UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e) =>
-        Dispatcher.Invoke(() => NativeTheme.Apply(this, _currentBackdrop));
+        Dispatcher.Invoke(() =>
+        {
+            NativeTheme.Apply(this, _currentBackdrop);
+            UpdateBackdropButtons();
+        });
 
     private void SelectConnectionMode(ConnectionMode mode)
     {
@@ -89,9 +146,7 @@ public partial class MainWindow : Window
         {
             item.IsSelected = string.Equals(item.Tag?.ToString(), mode.ToString(), StringComparison.OrdinalIgnoreCase);
         }
-        var visible = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
-        WifiAddressBox.Visibility = visible;
-        WifiPortBox.Visibility = visible;
+        WifiFieldsGrid.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private ConnectionMode SelectedConnectionMode() =>
@@ -166,7 +221,10 @@ public partial class MainWindow : Window
 
             var mpv = RuntimeLocator.FindMpv();
             if (mpv is null) throw new WorkerCommandException("player_missing", ErrorCatalog.MessageFor("player_missing"));
-            if (MpvHost.HostHandle == IntPtr.Zero) throw new InvalidOperationException("The video host is not ready.");
+            // At idle the host is collapsed so the WPF empty-state renders (an HWND
+            // always covers WPF siblings). Recreate it here and wait for the handle.
+            MpvHost.Visibility = Visibility.Visible;
+            if (!await WaitForHostHandleAsync()) throw new InvalidOperationException("The video host is not ready.");
 
             var videoPipeName = "iPhoneMirror.Video." + Guid.NewGuid().ToString("N");
             _mpv = new MpvSession(mpv, MpvHost.HostHandle, _settings.PreferHardwareDecode && !preferSoftwareDecode);
@@ -208,6 +266,29 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task<bool> WaitForHostHandleAsync()
+    {
+        for (var i = 0; i < 40; i++)
+        {
+            if (MpvHost.HostHandle != IntPtr.Zero) return true;
+            await Task.Delay(50);
+        }
+        return MpvHost.HostHandle != IntPtr.Zero;
+    }
+
+    private void ViewerFrame_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // Idle outside-tap: no HWND exists while the host is collapsed, so WPF
+        // handles viewer clicks directly here (the native handler covers live video).
+        if (SettingsSheet.Visibility != Visibility.Visible) return;
+        for (DependencyObject? d = e.OriginalSource as DependencyObject; d is not null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (d is ButtonBase || d is TextBoxBase || d is ComboBox || d is CheckBox || d is Thumb
+                || d is System.Windows.Controls.Primitives.ScrollBar) return;
+        }
+        HideSettingsSheet();
+    }
+
     private async Task StopSessionAsync(bool updateUi = true)
     {
         if (_stopping) return;
@@ -221,6 +302,8 @@ public partial class MainWindow : Window
             }
             _sessionActive = false;
             _inputOverlayTimer.Stop();
+            // Collapse the host so the HWND no longer covers the WPF idle UI.
+            MpvHost.Visibility = Visibility.Collapsed;
             if (_mpv is not null)
             {
                 await _mpv.DisposeAsync();
@@ -268,7 +351,7 @@ public partial class MainWindow : Window
         {
             StatusText.Text = e.Data.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean()
                 ? "Input reconnected"
-                : ErrorCatalog.MessageFor("input_disconnected");
+                : "Input disconnected";
             return;
         }
         if (e.Name != "state") return;
@@ -330,6 +413,7 @@ public partial class MainWindow : Window
         _suppressedPasteKeys.Clear();
         _sessionActive = false;
         _inputOverlayTimer.Stop();
+        MpvHost.Visibility = Visibility.Collapsed;
         if (_mpv is not null)
         {
             try { await _mpv.DisposeAsync(); }
@@ -342,7 +426,7 @@ public partial class MainWindow : Window
     {
         _lastErrorCode = code ?? "connection_failed";
         var message = ErrorCatalog.MessageFor(code);
-        StatusText.Text = message;
+        StatusText.Text = "Error";
         EmptyMessage.Text = message;
         EmptyOverlay.Visibility = Visibility.Visible;
         ConnectionDot.Fill = (Brush)FindResource("DangerBrush");
@@ -365,7 +449,7 @@ public partial class MainWindow : Window
         {
             for (var attempt = 0; attempt < 3 && !_closing; attempt++)
             {
-                StatusText.Text = $"Connection lost; reconnecting ({attempt + 1}/3)…";
+                StatusText.Text = $"Reconnecting ({attempt + 1}/3)…";
                 EmptyMessage.Text = "The display stream was interrupted. Retrying…";
                 EmptyOverlay.Visibility = Visibility.Visible;
                 ConnectionDot.Fill = (Brush)FindResource("DangerBrush");
@@ -433,7 +517,7 @@ public partial class MainWindow : Window
         {
             if (!_softwareFallbackUsed && _settings.PreferHardwareDecode)
             {
-                StatusText.Text = "Video decoder failed; retrying with software decoding…";
+                StatusText.Text = "Decoder failed; retrying…";
                 await ConnectAsync(preferSoftwareDecode: true);
             }
             else
@@ -446,6 +530,13 @@ public partial class MainWindow : Window
     private void MpvHost_NativeMouse(object? sender, NativeMouseEventArgs e)
     {
         UpdateViewerToolbar(e);
+        // Clicking the phone while the sheet is open dismisses the sheet
+        // (outside-tap) instead of sending a touch to the iPhone.
+        if (e.Kind == "down" && SettingsSheet.Visibility == Visibility.Visible)
+        {
+            HideSettingsSheet();
+            return;
+        }
         if (!_sessionActive || _worker is null || _worker.HasExited) return;
         var point = ViewportMapper.MapToPhone(e.X, e.Y, e.Width, e.Height, _sourceWidth, _sourceHeight, 1, clamp: _touchActive);
         try
@@ -501,6 +592,18 @@ public partial class MainWindow : Window
 
     private void ViewerToolbarWindow_ActionRequested(object? sender, string action)
     {
+        switch (action)
+        {
+            case "close":
+                Close();
+                return;
+            case "minimize":
+                WindowState = WindowState.Minimized;
+                return;
+            case "settings":
+                ToggleSettingsSheet();
+                return;
+        }
         if (!_sessionActive || _worker is null || _worker.HasExited) return;
         // Host controls are input events. Do not make the click wait for a
         // worker response over Wi-Fi; the worker still processes commands in
@@ -510,8 +613,15 @@ public partial class MainWindow : Window
 
     private async void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (!_sessionActive || _worker is null || _worker.HasExited) return;
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        // Esc always dismisses the sheet (even with no session).
+        if (key == Key.Escape && SettingsSheet.Visibility == Visibility.Visible)
+        {
+            e.Handled = true;
+            HideSettingsSheet();
+            return;
+        }
+        if (!_sessionActive || _worker is null || _worker.HasExited) return;
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && key is Key.D1 or Key.NumPad1 or Key.D2 or Key.NumPad2 or Key.D3 or Key.NumPad3)
         {
             e.Handled = true;
@@ -535,13 +645,13 @@ public partial class MainWindow : Window
                 await _worker.SendCommandAsync("key_state", new { usages = Array.Empty<int>() }, TimeSpan.FromSeconds(2));
                 if (!Clipboard.ContainsText(TextDataFormat.UnicodeText))
                 {
-                    StatusText.Text = "Clipboard does not contain plain text.";
+                    StatusText.Text = "Clipboard is not plain text.";
                     return;
                 }
                 var text = Clipboard.GetText(TextDataFormat.UnicodeText);
                 if (Encoding.UTF8.GetByteCount(text) > 1024 * 1024)
                 {
-                    StatusText.Text = "Clipboard text is larger than 1 MiB.";
+                    StatusText.Text = "Clipboard text exceeds 1 MiB.";
                     return;
                 }
                 await _worker.SendCommandAsync("paste", new { text }, TimeSpan.FromSeconds(10));
@@ -550,7 +660,7 @@ public partial class MainWindow : Window
             }
             catch
             {
-                StatusText.Text = "Paste failed. Use plain text up to 1 MiB and check the phone.";
+                    StatusText.Text = "Paste failed — use plain text ≤ 1 MiB.";
             }
             return;
         }
@@ -745,34 +855,87 @@ public partial class MainWindow : Window
     {
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
+        var keepOnTop = Topmost;
         Topmost = true;
-        Topmost = false;
+        Topmost = keepOnTop;
         Focus();
     }
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
     private async void ReconnectButton_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
     private async void DisconnectButton_Click(object sender, RoutedEventArgs e) => await StopSessionAsync();
-    private void HomeButton_Click(object sender, RoutedEventArgs e) { if (_worker is not null && _sessionActive) _ = _worker.SendCommandNoWaitAsync("home"); }
-    private void SpotlightButton_Click(object sender, RoutedEventArgs e) { if (_worker is not null && _sessionActive) _ = _worker.SendCommandNoWaitAsync("spotlight"); }
+    private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();
+    private void MinBtn_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
     private void SetupButton_Click(object sender, RoutedEventArgs e)
     {
-        SetupColumn.Width = new GridLength(350);
-        SetupPanel.Visibility = Visibility.Visible;
-        TabPhoneSetup_Click(sender, e);
+        // Phone Setup tab.
+        if (SettingsSheet.Visibility == Visibility.Visible && SettingsSection.Visibility == Visibility.Visible)
+        {
+            HideSettingsSheet();
+            return;
+        }
+        ShowSettingsSheet();
+        TabSettings_Click(sender, e);
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        SetupColumn.Width = new GridLength(350);
-        SetupPanel.Visibility = Visibility.Visible;
-        TabSettings_Click(sender, e);
+        // Cog toggles (fixes: previously only Done closed the sheet).
+        if (SettingsSheet.Visibility == Visibility.Visible)
+        {
+            HideSettingsSheet();
+            return;
+        }
+        ShowSettingsSheet();
+        TabPhoneSetup_Click(sender, e);
     }
 
-    private void CloseSetupButton_Click(object sender, RoutedEventArgs e)
+    private void ToggleSettingsSheet()
     {
-        SetupPanel.Visibility = Visibility.Collapsed;
-        SetupColumn.Width = new GridLength(0);
+        if (SettingsSheet.Visibility == Visibility.Visible) HideSettingsSheet();
+        else
+        {
+            ShowSettingsSheet();
+            TabPhoneSetup_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void ShowSettingsSheet()
+    {
+        SettingsSheet.Visibility = Visibility.Visible;
+        _viewerToolbarWindow?.Hide();
+        _viewerToolbarTimer.Stop();
+    }
+
+    private void HideSettingsSheet() => SettingsSheet.Visibility = Visibility.Collapsed;
+
+    private void CloseSetupButton_Click(object sender, RoutedEventArgs e) => HideSettingsSheet();
+
+    private void SheetGrabber_Down(object sender, MouseButtonEventArgs e)
+    {
+        _sheetDragArmed = true;
+        _sheetDragStart = e.GetPosition(this);
+        try { ((UIElement)sender).CaptureMouse(); } catch { }
+    }
+
+    private void SheetGrabber_Move(object sender, MouseEventArgs e)
+    {
+        if (!_sheetDragArmed || e.LeftButton != MouseButtonState.Pressed) return;
+        var pos = e.GetPosition(this);
+        // Drag down ~70px dismisses the sheet (iOS-style slide-down).
+        if (pos.Y - _sheetDragStart.Y > 70)
+        {
+            _sheetDragArmed = false;
+            try { ((UIElement)sender).ReleaseMouseCapture(); } catch { }
+            HideSettingsSheet();
+        }
+    }
+
+    private void SheetGrabber_Up(object sender, MouseButtonEventArgs e)
+    {
+        _sheetDragArmed = false;
+        try { ((UIElement)sender).ReleaseMouseCapture(); } catch { }
     }
 
     private void TabPhoneSetup_Click(object sender, RoutedEventArgs e)
@@ -780,8 +943,10 @@ public partial class MainWindow : Window
         PhoneSetupSection.Visibility = Visibility.Visible;
         SettingsSection.Visibility = Visibility.Collapsed;
         TabPhoneSetupBtn.SetResourceReference(Control.BackgroundProperty, "AccentBrush");
-        TabSettingsBtn.SetResourceReference(Control.BackgroundProperty, "SurfaceAltBrush");
-        PanelTitle.Text = "Phone Setup";
+        TabPhoneSetupBtn.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        TabSettingsBtn.SetResourceReference(Control.BackgroundProperty, "SegmentBrush");
+        TabSettingsBtn.SetResourceReference(Control.ForegroundProperty, "SegmentTextBrush");
+        PanelTitle.Text = "Settings & Options";
     }
 
     private void TabSettings_Click(object sender, RoutedEventArgs e)
@@ -789,8 +954,10 @@ public partial class MainWindow : Window
         PhoneSetupSection.Visibility = Visibility.Collapsed;
         SettingsSection.Visibility = Visibility.Visible;
         TabSettingsBtn.SetResourceReference(Control.BackgroundProperty, "AccentBrush");
-        TabPhoneSetupBtn.SetResourceReference(Control.BackgroundProperty, "SurfaceAltBrush");
-        PanelTitle.Text = "Settings & Preferences";
+        TabSettingsBtn.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        TabPhoneSetupBtn.SetResourceReference(Control.BackgroundProperty, "SegmentBrush");
+        TabPhoneSetupBtn.SetResourceReference(Control.ForegroundProperty, "SegmentTextBrush");
+        PanelTitle.Text = "Settings & Options";
     }
 
     private void HwDecode_Changed(object sender, RoutedEventArgs e)
@@ -805,41 +972,34 @@ public partial class MainWindow : Window
     private void AlwaysOnTop_Changed(object sender, RoutedEventArgs e)
     {
         Topmost = AlwaysOnTopBox.IsChecked == true;
-    }
-
-    private void BackdropBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (IsLoaded && BackdropBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        if (IsLoaded)
         {
-            _currentBackdrop = tag switch
-            {
-                "Acrylic" => BackdropType.Acrylic,
-                "MicaAlt" => BackdropType.MicaAlt,
-                "None" => BackdropType.None,
-                _ => BackdropType.Mica,
-            };
-            NativeTheme.Apply(this, _currentBackdrop);
-            if (_viewerToolbarWindow is not null)
-                NativeTheme.Apply(_viewerToolbarWindow, _currentBackdrop);
+            _settings.AlwaysOnTop = AlwaysOnTopBox.IsChecked == true;
+            SettingsStore.Save(_paths.SettingsFile, _settings);
         }
     }
 
+    private void BackdropAcrylic_Click(object sender, RoutedEventArgs e) => ApplyBackdrop(BackdropType.Acrylic);
+    private void BackdropMica_Click(object sender, RoutedEventArgs e) => ApplyBackdrop(BackdropType.Mica);
+    private void BackdropSolid_Click(object sender, RoutedEventArgs e) => ApplyBackdrop(BackdropType.None);
+
     private void Scale75_Click(object sender, RoutedEventArgs e)
     {
-        Width = 740;
-        Height = 650;
+        // Phone aspect (~0.466) at 75%.
+        Width = 320;
+        Height = 690;
     }
 
     private void Scale100_Click(object sender, RoutedEventArgs e)
     {
-        Width = 920;
-        Height = 820;
+        Width = 410;
+        Height = 880;
     }
 
     private void Scale125_Click(object sender, RoutedEventArgs e)
     {
-        Width = 1150;
-        Height = 980;
+        Width = 510;
+        Height = 1090;
     }
 
     private async void RefreshDevicesButton_Click(object sender, RoutedEventArgs e) => await RefreshDevicesAsync();

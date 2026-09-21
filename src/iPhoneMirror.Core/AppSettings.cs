@@ -11,6 +11,8 @@ public sealed class AppSettings
     public string? WifiAddress { get; set; }
     public int WifiPort { get; set; } = 49152;
     public bool PreferHardwareDecode { get; set; } = true;
+    public string Backdrop { get; set; } = "Acrylic";
+    public bool AlwaysOnTop { get; set; } = false;
 }
 
 public static class SettingsStore

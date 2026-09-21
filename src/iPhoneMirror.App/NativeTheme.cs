@@ -19,8 +19,10 @@ internal static class NativeTheme
 {
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWCP_ROUND = 2;
 
-    public static void Apply(Window window, BackdropType backdrop = BackdropType.Mica)
+    public static void Apply(Window window, BackdropType backdrop = BackdropType.Acrylic)
     {
         var dark = IsDarkTheme();
         var handle = new WindowInteropHelper(window).Handle;
@@ -30,6 +32,12 @@ internal static class NativeTheme
             var backdropValue = (int)backdrop;
             _ = DwmSetWindowAttribute(handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkValue, sizeof(int));
             _ = DwmSetWindowAttribute(handle, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropValue, sizeof(int));
+            // Round the outer window via DWM so the embedded MPV HWND (which
+            // ignores WPF ClipToBounds) is clipped to the same phone-like
+            // shape as the rest of the chrome. This removes the square
+            // video corners / black border seen with WPF-only rounding.
+            var cornerValue = DWMWCP_ROUND;
+            _ = DwmSetWindowAttribute(handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerValue, sizeof(int));
         }
 
         var resources = Application.Current.Resources;
@@ -38,6 +46,10 @@ internal static class NativeTheme
             resources["WindowBrush"] = SystemColors.WindowBrush;
             resources["SurfaceBrush"] = SystemColors.ControlBrush;
             resources["SurfaceAltBrush"] = SystemColors.ControlLightBrush;
+            resources["SheetBrush"] = SystemColors.WindowBrush;
+            resources["CardBrush"] = SystemColors.ControlBrush;
+            resources["SegmentBrush"] = SystemColors.ControlLightBrush;
+            resources["SegmentTextBrush"] = SystemColors.WindowTextBrush;
             resources["ToolbarGlassBrush"] = SystemColors.ControlBrush;
             resources["GlassBorderBrush"] = SystemColors.ControlDarkBrush;
             resources["TextBrush"] = SystemColors.WindowTextBrush;
@@ -47,7 +59,9 @@ internal static class NativeTheme
             return;
         }
 
-        // When using a system backdrop (Mica / Acrylic), translucent backgrounds allow the DWM effect to shine through
+        // When using a system backdrop (Mica / Acrylic), translucent backgrounds allow the DWM effect to shine through.
+        // The viewer itself stays transparent so there is no black letterbox border;
+        // the settings sheet uses an OPAQUE brush so white text stays readable.
         var useBackdrop = backdrop is BackdropType.Mica or BackdropType.Acrylic or BackdropType.MicaAlt;
         if (useBackdrop)
         {
@@ -61,6 +75,14 @@ internal static class NativeTheme
             resources["SurfaceBrush"] = new SolidColorBrush(dark ? Color.FromRgb(23, 26, 29) : Colors.White);
             resources["SurfaceAltBrush"] = new SolidColorBrush(dark ? Color.FromRgb(32, 36, 40) : Color.FromRgb(232, 237, 242));
         }
+
+        // Opaque sheet + card brushes: never translucent, so text contrast is
+        // guaranteed on top of Acrylic/Mica and on top of live iPhone video.
+        // Dark sheet: near-black opaque; light sheet: near-white opaque.
+        resources["SheetBrush"] = new SolidColorBrush(dark ? Color.FromRgb(28, 31, 36) : Color.FromRgb(245, 246, 248));
+        resources["CardBrush"] = new SolidColorBrush(dark ? Color.FromRgb(42, 47, 54) : Colors.White);
+        resources["SegmentBrush"] = new SolidColorBrush(dark ? Color.FromRgb(46, 51, 57) : Color.FromRgb(225, 229, 234));
+        resources["SegmentTextBrush"] = new SolidColorBrush(dark ? Color.FromRgb(200, 207, 214) : Color.FromRgb(60, 66, 73));
 
         // Floating Liquid Glass brushes (translucent with specular rim lighting)
         resources["ToolbarGlassBrush"] = new SolidColorBrush(dark ? Color.FromArgb(195, 28, 32, 38) : Color.FromArgb(220, 248, 250, 253));

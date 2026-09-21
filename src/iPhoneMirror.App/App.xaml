@@ -5,6 +5,12 @@
         <SolidColorBrush x:Key="WindowBrush" Color="#111315" />
         <SolidColorBrush x:Key="SurfaceBrush" Color="#171A1D" />
         <SolidColorBrush x:Key="SurfaceAltBrush" Color="#202428" />
+        <SolidColorBrush x:Key="SheetBrush" Color="#1C1F24" />
+        <SolidColorBrush x:Key="CardBrush" Color="#2A2F36" />
+        <SolidColorBrush x:Key="SegmentBrush" Color="#2E3339" />
+        <SolidColorBrush x:Key="SegmentTextBrush" Color="#C8CFD6" />
+        <SolidColorBrush x:Key="ToolbarGlassBrush" Color="#1C2026" />
+        <SolidColorBrush x:Key="GlassBorderBrush" Color="#3CFFFFFF" />
         <SolidColorBrush x:Key="TextBrush" Color="#F5F7F8" />
         <SolidColorBrush x:Key="MutedTextBrush" Color="#AAB1B8" />
         <SolidColorBrush x:Key="AccentBrush" Color="#4CC2FF" />
@@ -38,6 +44,152 @@
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Chrome" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SegmentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Chrome" CornerRadius="8" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="0" VerticalAlignment="Center"
+                                          Focusable="False" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SegmentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="Toggle" Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Chrome" CornerRadius="8" Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource AncestorType=ComboBox}}">
+                                            <Path HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                  Data="M 0 0 L 4 4 L 8 0 Z" Fill="{DynamicResource MutedTextBrush}" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Chrome" Property="Opacity" Value="0.86" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite" IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                              HorizontalAlignment="Left" />
+                            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}" Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                        Background="{DynamicResource SheetBrush}"
+                                        BorderBrush="{DynamicResource SegmentBrush}" BorderThickness="1"
+                                        CornerRadius="8" Margin="0,4,0,0" Padding="0,4">
+                                    <ScrollViewer SnapsToDevicePixels="True" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Chrome" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SegmentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="Box" Width="18" Height="18" CornerRadius="5"
+                                    Background="{DynamicResource SurfaceAltBrush}"
+                                    BorderBrush="{DynamicResource SegmentBrush}" BorderThickness="1"
+                                    VerticalAlignment="Center">
+                                <Path x:Name="Check" Data="M 3 8 L 7 12 L 14 4" Stroke="White" StrokeThickness="2"
+                                      Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                            </Border>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
