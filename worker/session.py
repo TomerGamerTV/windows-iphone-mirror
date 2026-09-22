@@ -56,6 +56,17 @@ class TrackedTransport:
 
 
 class HevcPipeSink:
+    """Writes HEVC access units to the mpv named pipe on a dedicated thread.
+
+    Stall tracking: ``last_write`` is the monotonic time of the last completed
+    pipe write (initialized when the sink is created). ``write_started`` is set
+    while a write is in flight. ``is_stalled`` reports true when a write has been
+    in flight longer than ``timeout`` or when frames are pending but no write has
+    completed for longer than ``timeout``. The session loop polls this so a hung
+    mpv (or blocked pipe) ends the session with ``video_stall`` instead of
+    freezing forever while the transport still looks healthy.
+    """
+
     def __init__(self, vps, sps, pps, *, pipe_path, loop, on_ready, on_stop, **_):
         from pymobiledevice3.remote.core_device.hevc_av import parse_sps, remove_emulation_prevention
 
@@ -71,10 +82,26 @@ class HevcPipeSink:
         self._loop = loop
         self._on_stop = on_stop
         self._stream = open(pipe_path, "wb", buffering=0)
+        self._last_write = time.monotonic()
+        self._write_started = None
         self._thread = threading.Thread(target=self._write, name="hevc-pipe-writer", daemon=True)
         self._thread.start()
         self.feed(b"".join(b"\x00\x00\x00\x01" + nal for nal in (vps, sps, pps)))
         on_ready(self.width, self.height)
+
+    @property
+    def last_write(self) -> float:
+        return self._last_write
+
+    def is_stalled(self, timeout: float = 4.0) -> bool:
+        if self._stop.is_set():
+            return False
+        now = time.monotonic()
+        if self._write_started is not None and now - self._write_started > timeout:
+            return True
+        if not self._queue.empty() and now - self._last_write > timeout:
+            return True
+        return False
 
     def feed(self, data):
         if self._stop.is_set():
@@ -106,8 +133,11 @@ class HevcPipeSink:
                     continue
                 if self._header_pending:
                     self._header_pending = False
+                self._write_started = time.monotonic()
                 started = time.perf_counter()
                 _write_all(self._stream, data, self._stop)
+                self._write_started = None
+                self._last_write = time.monotonic()
                 _record_video_timing(
                     "video_written",
                     bytes=len(data),
@@ -256,6 +286,23 @@ class MirrorSession:
                         break
                     if time.monotonic() - self.transport.last_packet > 15:
                         self.stop("stream_timeout")
+                        break
+                    # A live transport with a wedged pipe (hung mpv / blocked
+                    # write) leaves the UI frozen while inputs still work.
+                    # End the session so the app's transient reconnect runs.
+                    if self.sink is not None and self.sink.is_stalled(4.0):
+                        self.stop("video_stall")
+                        break
+                    # Packets still arrive but nothing reaches the pipe: the
+                    # decoder or sink is stuck. stream_timeout never fires
+                    # because last_packet keeps refreshing.
+                    now = time.monotonic()
+                    if (
+                        self.sink is not None
+                        and now - self.sink.last_write > 8.0
+                        and now - self.transport.last_packet < 3.0
+                    ):
+                        self.stop("video_stall")
                         break
                     with contextlib.suppress(asyncio.TimeoutError):
                         await asyncio.wait_for(self.stop_event.wait(), 0.25)

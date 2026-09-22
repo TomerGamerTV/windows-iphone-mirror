@@ -555,7 +555,7 @@ public partial class MainWindow : Window
 
     private static bool IsTransientSessionError(string code) => code is
         "stream_timeout" or "stream_ended" or "player_disconnected" or
-        "connection_failed" or "worker_crashed";
+        "connection_failed" or "worker_crashed" or "video_stall";
 
     private void StartAutomaticReconnect(string errorCode)
     {

@@ -560,3 +560,9 @@ et10.0 and emits the Windows target framework itself.
 
 - Fix: replaced the remaining `Process.Kill(bool)` call in the isolated installer verifier with Windows `taskkill` tree cleanup, so the documented verifier works with the default Windows PowerShell host.
 - Validation: first install, in-place update, restricted-PATH bundled CLI status, silent uninstall, and install-directory removal all passed under Windows PowerShell 5.
+
+## 2026-09-22 — Detect HEVC pipe stall and auto-reconnect
+
+- Symptom: preview froze while inputs still worked; CLI reported `running` and mpv/worker sat at ~0% CPU; the phone status-bar clock stopped advancing for minutes. `stream_timeout` never fired because `transport.last_packet` kept refreshing.
+- Fix: `HevcPipeSink` now tracks `last_write`/`write_started` and exposes `is_stalled()`. The session loop stops with transient `video_stall` when a pipe write is blocked >4s, frames are pending with no completed write for >4s, or packets arrive but nothing reaches the pipe for >8s. `video_stall` is listed in `ErrorCatalog` and treated as a transient reconnect code.
+- Validation: Release build 0/0; .NET tests 24/24; worker tests 33/33 (new stall cases); installer rebuilt and silent reinstall exit 0.

@@ -66,6 +66,29 @@ class WorkerSafetyTests(unittest.TestCase):
         sink.feed(b"fresh")
         self.assertEqual(b"fresh", sink._queue.get_nowait())
 
+    def test_hevc_pipe_sink_reports_stall_when_write_is_blocked(self):
+        sink = object.__new__(HevcPipeSink)
+        sink._stop = threading.Event()
+        sink._queue = queue.Queue(maxsize=4)
+        sink._last_write = time.monotonic()
+        sink._write_started = time.monotonic() - 5.0
+        self.assertTrue(sink.is_stalled(timeout=4.0))
+        sink._write_started = None
+        sink._last_write = time.monotonic() - 5.0
+        sink._queue.put_nowait(b"pending")
+        self.assertTrue(sink.is_stalled(timeout=4.0))
+
+    def test_hevc_pipe_sink_is_not_stalled_when_idle_and_clean(self):
+        sink = object.__new__(HevcPipeSink)
+        sink._stop = threading.Event()
+        sink._queue = queue.Queue(maxsize=4)
+        sink._last_write = time.monotonic()
+        sink._write_started = None
+        self.assertFalse(sink.is_stalled(timeout=4.0))
+        sink._stop.set()
+        sink._queue.put_nowait(b"pending")
+        self.assertFalse(sink.is_stalled(timeout=0.0))
+
     def test_unknown_exception_text_is_not_returned_as_error_code(self):
         secret = "PAIRING_SECRET_SHOULD_NOT_LEAK"
         self.assertEqual("connection_failed", worker_main.error_code(RuntimeError(secret)))

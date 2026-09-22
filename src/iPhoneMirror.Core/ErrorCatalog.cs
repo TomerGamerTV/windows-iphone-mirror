@@ -18,6 +18,7 @@ public static class ErrorCatalog
         ["wifi_unreachable"] = "The paired iPhone could not be reached on the local Wi-Fi network.",
         ["multiple_devices"] = "Several iPhones match. Select one device before connecting.",
         ["stream_timeout"] = "Video stopped arriving. Reconnect after any phone call or network interruption ends.",
+        ["video_stall"] = "Video stalled while the connection stayed up. Reconnecting automatically…",
         ["stream_ended"] = "The iPhone video stream ended. Reconnect after the phone or network is ready.",
         ["stream_backlog"] = "Video could not be consumed quickly enough. Reconnect to start a clean stream.",
         ["player_disconnected"] = "The embedded video player stopped receiving the stream.",
