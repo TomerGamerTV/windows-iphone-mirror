@@ -114,13 +114,13 @@
                                             <ColumnDefinition Width="70" />
                                         </Grid.ColumnDefinitions>
                                         <ComboBox x:Name="WifiAddressBox" IsEditable="True" IsTextSearchEnabled="True"
-                                                  ToolTip="iPhone Wi-Fi IP (e.g. 192.168.1.20). Recent addresses appear in the dropdown."
+                                                  ToolTip="Type the iPhone’s Wi‑Fi IP (e.g. 192.168.1.20) or pick a discovered/recent address from the dropdown. Discovery runs automatically."
                                                   AutomationProperties.Name="Wi-Fi iPhone address" Margin="0,0,6,0" />
                                         <TextBox x:Name="WifiPortBox" Grid.Column="1" Text="49152" ToolTip="Wi-Fi remote pairing port (usually 49152)" AutomationProperties.Name="Wi-Fi remote pairing port" />
                                     </Grid>
                                     <TextBlock x:Name="WifiHint" Visibility="Collapsed" Margin="0,0,0,6"
                                                TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"
-                                               Text="Wi-Fi only: type the iPhone’s local IP address. For USB, switch mode to Auto or USB and leave this blank." />
+                                               Text="Searching the local network for a paired iPhone… You can also type its IP (iPhone Settings → Wi-Fi → ⓘ)." />
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                         <Button x:Name="ConnectButton" Content="Connect" Click="ConnectButton_Click"
                                                 Background="{DynamicResource AccentBrush}" Foreground="White"
@@ -253,7 +253,7 @@
                         <StackPanel x:Name="SettingsSection" Visibility="Collapsed">
                             <TextBlock Margin="0,0,0,12" TextWrapping="Wrap" Foreground="{DynamicResource MutedTextBrush}"
                                        Text="Each action that changes the phone or pairing records asks for confirmation first. Passcodes stay on the iPhone." />
-                            <Button Content="Refresh USB devices" Click="RefreshDevicesButton_Click" AutomationProperties.Name="Refresh USB devices" Margin="0,3" HorizontalAlignment="Stretch" />
+                                    <Button Content="Refresh devices &amp; find Wi‑Fi IP" Click="RefreshDevicesButton_Click" AutomationProperties.Name="Refresh devices and find Wi-Fi IP" Margin="0,3" HorizontalAlignment="Stretch" />
                             <Button Content="Check setup" Click="CheckSetupButton_Click" AutomationProperties.Name="Check iPhone setup" Margin="0,3" HorizontalAlignment="Stretch" />
                             <Button Content="Trust this computer" Click="PairUsbButton_Click" AutomationProperties.Name="Trust this computer" Margin="0,3" HorizontalAlignment="Stretch" />
                             <Button Content="Reveal Developer Mode" Click="RevealDeveloperModeButton_Click" AutomationProperties.Name="Reveal Developer Mode" Margin="0,3" HorizontalAlignment="Stretch" />

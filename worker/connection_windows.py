@@ -164,6 +164,30 @@ async def connect_wifi(identifier: str, address: str, port: int) -> RemotePairin
         raise
 
 
+async def discover_wifi(timeout: float = 4.0) -> list[dict]:
+    """Return mDNS remote-pairing endpoints as address/port pairs for the UI."""
+    try:
+        answers = await browse_remotepairing(timeout=timeout)
+    except Exception:
+        return []
+    endpoints = {
+        (address.full_ip, answer.port)
+        for answer in answers
+        for address in answer.addresses
+    }
+
+    def sort_key(endpoint):
+        address, port = endpoint
+        try:
+            parsed = ipaddress.ip_address(address)
+            return (parsed.version, int(parsed), port)
+        except ValueError:
+            return (99, 0, str(address), port)
+
+    ordered = sorted(endpoints, key=sort_key)
+    return [{"address": address, "port": int(port)} for address, port in ordered]
+
+
 async def wifi_provider(serial=None, autopair=False, remotepairing_fallback=False, direct_address=None, direct_port=49152):
     identifiers = list(iter_remote_paired_identifiers())
     if serial:

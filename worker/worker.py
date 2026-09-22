@@ -20,7 +20,7 @@ _WORKER_DIR = str(Path(__file__).resolve().parent)
 if _WORKER_DIR not in sys.path:
     sys.path.insert(0, _WORKER_DIR)
 
-from connection_windows import ConnectionSelectionError
+from connection_windows import ConnectionSelectionError, discover_wifi
 from session import MirrorSession
 from setup_actions import SetupError, execute as setup_execute, list_usb_devices
 
@@ -131,6 +131,8 @@ class Worker:
             }
         if command == "list_devices":
             return {"devices": await list_usb_devices()}
+        if command == "discover_wifi":
+            return {"endpoints": await discover_wifi()}
         if command == "start_session":
             if self.session_task is not None and not self.session_task.done():
                 raise RuntimeError("session_already_running")

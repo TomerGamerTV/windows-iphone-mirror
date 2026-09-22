@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private BackdropType _currentBackdrop = BackdropType.Acrylic;
     private bool _sheetDragArmed;
     private Point _sheetDragStart;
+    private readonly List<(string Address, int Port)> _discoveredWifiEndpoints = [];
 
     public MainWindow(CommandLineOptions launchOptions)
     {
@@ -180,7 +181,53 @@ public partial class MainWindow : Window
         {
             history.Insert(0, current!);
         }
+        history = history
+            .Concat(_discoveredWifiEndpoints.Select(endpoint => endpoint.Address))
+            .Where(address => !string.IsNullOrWhiteSpace(address))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         WifiAddressBox.ItemsSource = history;
+    }
+
+    private void MergeDiscoveredWifiEndpoints(IEnumerable<(string Address, int Port)> endpoints)
+    {
+        _discoveredWifiEndpoints.Clear();
+        _discoveredWifiEndpoints.AddRange(endpoints);
+        RefreshWifiAddressHistory();
+    }
+
+    private async Task DiscoverWifiEndpointsAsync()
+    {
+        if (WifiHint is not null)
+            WifiHint.Text = "Searching the local network for a paired iPhone… You can also type its IP (iPhone Settings → Wi-Fi → ⓘ).";
+        try
+        {
+            await EnsureWorkerAsync();
+            var data = await _worker!.SendCommandAsync("discover_wifi", timeout: TimeSpan.FromSeconds(8));
+            var endpoints = new List<(string Address, int Port)>();
+            if (data.TryGetProperty("endpoints", out var items))
+            {
+                foreach (var item in items.EnumerateArray())
+                {
+                    var address = item.GetProperty("address").GetString();
+                    var port = item.TryGetProperty("port", out var portValue) ? portValue.GetInt32() : 49152;
+                    if (!string.IsNullOrWhiteSpace(address))
+                        endpoints.Add((address.Trim(), port));
+                }
+            }
+            MergeDiscoveredWifiEndpoints(endpoints);
+            if (WifiHint is not null)
+            {
+                WifiHint.Text = endpoints.Count > 0
+                    ? $"Found {endpoints.Count} endpoint{(endpoints.Count == 1 ? "" : "s")} on the network — pick one, or type the iPhone’s IP (iPhone Settings → Wi-Fi → ⓘ)."
+                    : "No paired iPhone found on the network yet. Type its IP (iPhone Settings → Wi-Fi → ⓘ), or pair over USB first.";
+            }
+        }
+        catch
+        {
+            if (WifiHint is not null)
+                WifiHint.Text = "Could not search the network. Type the iPhone’s IP (iPhone Settings → Wi-Fi → ⓘ) or pair over USB first.";
+        }
     }
 
     private void RememberWifiAddress(string? address)
@@ -236,6 +283,9 @@ public partial class MainWindow : Window
         {
             SetError("connection_failed");
         }
+
+        try { await DiscoverWifiEndpointsAsync(); }
+        catch { }
     }
 
     private void SetCaptionStatus(string text)
@@ -269,7 +319,8 @@ public partial class MainWindow : Window
             {
                 await StopSessionAsync(updateUi: false);
                 SetError("wifi_unreachable");
-                EmptyMessage.Text = "Enter the iPhone’s Wi‑Fi address (and port), or switch to USB/Auto.";
+                EmptyMessage.Text = "Enter the iPhone’s Wi‑Fi IP (type it, or pick a discovered address from the dropdown), or switch to USB/Auto.";
+                try { await DiscoverWifiEndpointsAsync(); } catch { }
                 return;
             }
 
@@ -1116,6 +1167,7 @@ public partial class MainWindow : Window
         if (mode == ConnectionMode.Wifi && WifiAddressBox is not null)
         {
             RefreshWifiAddressHistory();
+            if (IsLoaded) _ = DiscoverWifiEndpointsAsync();
         }
         if (IsLoaded)
         {

@@ -62,6 +62,8 @@ for line in sys.stdin:
 
     if command == "hello":
         response(request, {"protocol_version": 1})
+    elif command == "discover_wifi":
+        response(request, {"endpoints": [{"address": "192.168.1.20", "port": 49152}]})
     elif command == "list_devices":
         response(request, {"devices": [{
             "serial": "fake-wpf-device",

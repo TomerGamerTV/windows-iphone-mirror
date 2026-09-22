@@ -128,6 +128,35 @@ class RouteFilteringTests(unittest.IsolatedAsyncioTestCase):
                 await connection_windows.wifi_provider()
         self.assertEqual("multiple_devices", caught.exception.code)
 
+    async def test_discover_wifi_returns_sorted_ipv4_endpoints(self):
+        answer = mock.Mock(port=49152)
+        answer.addresses = [
+            mock.Mock(full_ip="2001:db8::10"),
+            mock.Mock(full_ip="192.168.1.20"),
+        ]
+        second = mock.Mock(port=49153)
+        second.addresses = [mock.Mock(full_ip="192.168.1.5")]
+        with mock.patch.object(connection_windows, "browse_remotepairing", new=AsyncMock(return_value=[answer, second])):
+            endpoints = await connection_windows.discover_wifi()
+        self.assertEqual(
+            [
+                {"address": "192.168.1.5", "port": 49153},
+                {"address": "192.168.1.20", "port": 49152},
+                {"address": "2001:db8::10", "port": 49152},
+            ],
+            endpoints,
+        )
+
+    async def test_discover_wifi_returns_empty_when_browse_fails(self):
+        with mock.patch.object(connection_windows, "browse_remotepairing", new=AsyncMock(side_effect=RuntimeError("mdns down"))):
+            self.assertEqual([], await connection_windows.discover_wifi())
+
+    async def test_worker_discover_wifi_command_returns_endpoints(self):
+        worker = worker_main.Worker()
+        with mock.patch.object(worker_main, "discover_wifi", new=AsyncMock(return_value=[{"address": "192.168.1.20", "port": 49152}])):
+            result = await worker.handle("discover_wifi", {})
+        self.assertEqual({"endpoints": [{"address": "192.168.1.20", "port": 49152}]}, result)
+
     async def test_wifi_direct_endpoint_skips_mdns_discovery(self):
         service = object()
         with (
