@@ -59,7 +59,7 @@ public partial class MainWindow : Window
         _viewerToolbarTimer.Tick += (_, _) =>
         {
             _viewerToolbarTimer.Stop();
-            _viewerToolbarWindow?.Hide();
+            _viewerToolbarWindow?.HideAnimated();
         };
         _inputOverlayTimer = new System.Windows.Threading.DispatcherTimer
         {
@@ -208,6 +208,18 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SetCaptionStatus(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            CaptionStatus.Visibility = Visibility.Collapsed;
+            CaptionStatus.Text = string.Empty;
+            return;
+        }
+        CaptionStatus.Text = text;
+        CaptionStatus.Visibility = Visibility.Visible;
+    }
+
     private async Task ConnectAsync(bool preferSoftwareDecode = false)
     {
         if (_stopping) return;
@@ -215,6 +227,7 @@ public partial class MainWindow : Window
         {
             ConnectButton.IsEnabled = false;
             StatusText.Text = "Connecting…";
+            SetCaptionStatus("Connecting…");
             EmptyMessage.Text = "Opening the CoreDevice display stream…";
             await StopSessionAsync(updateUi: false);
             await EnsureWorkerAsync();
@@ -252,13 +265,13 @@ public partial class MainWindow : Window
         }
         catch (WorkerCommandException error)
         {
-            SetError(error.Code);
             await StopSessionAsync(updateUi: false);
+            SetError(error.Code);
         }
         catch
         {
-            SetError("connection_failed");
             await StopSessionAsync(updateUi: false);
+            SetError("connection_failed");
         }
         finally
         {
@@ -312,6 +325,7 @@ public partial class MainWindow : Window
             if (updateUi)
             {
                 StatusText.Text = "Disconnected";
+                SetCaptionStatus(string.Empty);
                 DeviceStatusText.Text = "No active session";
                 EmptyOverlay.Visibility = Visibility.Visible;
                 EmptyMessage.Text = "Connect over USB or a previously paired Wi-Fi connection.";
@@ -364,12 +378,14 @@ public partial class MainWindow : Window
                 _lastErrorCode = null;
                 _sessionRunning = false;
                 StatusText.Text = "Starting display stream…";
+                SetCaptionStatus("Starting…");
                 DeviceStatusText.Text = transport is null ? "Connecting" : $"Connecting over {transport.ToUpperInvariant()}";
                 break;
             case "running":
                 _lastErrorCode = null;
                 _sessionRunning = true;
                 StatusText.Text = "Connected";
+                SetCaptionStatus(string.Empty);
                 DeviceStatusText.Text = transport is null ? "Live" : $"Live · {transport.ToUpperInvariant()}";
                 EmptyOverlay.Visibility = Visibility.Collapsed;
                 ConnectionDot.Fill = (Brush)FindResource("AccentBrush");
@@ -378,11 +394,13 @@ public partial class MainWindow : Window
                 break;
             case "stopping":
                 StatusText.Text = "Disconnecting…";
+                SetCaptionStatus("Disconnecting…");
                 break;
             case "stopped":
                 _sessionRunning = false;
                 await ClearSessionResourcesAsync();
                 StatusText.Text = "Disconnected";
+                SetCaptionStatus(string.Empty);
                 EmptyOverlay.Visibility = Visibility.Visible;
                 ConnectionDot.Fill = (Brush)FindResource("MutedTextBrush");
                 break;
@@ -413,6 +431,7 @@ public partial class MainWindow : Window
         _suppressedPasteKeys.Clear();
         _sessionActive = false;
         _inputOverlayTimer.Stop();
+        SetCaptionStatus(string.Empty);
         MpvHost.Visibility = Visibility.Collapsed;
         if (_mpv is not null)
         {
@@ -427,6 +446,7 @@ public partial class MainWindow : Window
         _lastErrorCode = code ?? "connection_failed";
         var message = ErrorCatalog.MessageFor(code);
         StatusText.Text = "Error";
+        SetCaptionStatus("Error");
         EmptyMessage.Text = message;
         EmptyOverlay.Visibility = Visibility.Visible;
         ConnectionDot.Fill = (Brush)FindResource("DangerBrush");
@@ -450,6 +470,7 @@ public partial class MainWindow : Window
             for (var attempt = 0; attempt < 3 && !_closing; attempt++)
             {
                 StatusText.Text = $"Reconnecting ({attempt + 1}/3)…";
+                SetCaptionStatus($"Reconnecting {attempt + 1}/3…");
                 EmptyMessage.Text = "The display stream was interrupted. Retrying…";
                 EmptyOverlay.Visibility = Visibility.Visible;
                 ConnectionDot.Fill = (Brush)FindResource("DangerBrush");
@@ -459,7 +480,11 @@ public partial class MainWindow : Window
 
                 for (var wait = 0; wait < 40 && !_closing; wait++)
                 {
-                    if (_sessionRunning) return;
+                    if (_sessionRunning)
+                    {
+                        SetCaptionStatus(string.Empty);
+                        return;
+                    }
                     if (!_sessionActive) break;
                     await Task.Delay(250);
                 }
@@ -473,6 +498,7 @@ public partial class MainWindow : Window
         finally
         {
             _automaticReconnect = false;
+            if (!_sessionRunning) SetCaptionStatus(string.Empty);
         }
     }
 
@@ -518,10 +544,12 @@ public partial class MainWindow : Window
             if (!_softwareFallbackUsed && _settings.PreferHardwareDecode)
             {
                 StatusText.Text = "Decoder failed; retrying…";
+                SetCaptionStatus("Retrying…");
                 await ConnectAsync(preferSoftwareDecode: true);
             }
             else
             {
+                await ClearSessionResourcesAsync();
                 SetError("connection_failed");
             }
         });
@@ -576,11 +604,7 @@ public partial class MainWindow : Window
         var edgeHeight = Math.Max(44, e.Height * 0.12);
         if (e.Y <= edgeHeight)
         {
-            if (_viewerToolbarWindow is not null)
-            {
-                _viewerToolbarWindow.Reposition(MpvHost);
-                if (!_viewerToolbarWindow.IsVisible) _viewerToolbarWindow.Show();
-            }
+            _viewerToolbarWindow?.ShowAnimated(MpvHost);
             _viewerToolbarTimer.Stop();
         }
         else if (_viewerToolbarWindow?.IsVisible == true)
@@ -862,8 +886,19 @@ public partial class MainWindow : Window
 
     private void MinBtn_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
-    private void MaxBtn_Click(object sender, RoutedEventArgs e) =>
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    private void MaxBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            WindowState = WindowState.Normal;
+            MaxGlyph.Text = "";
+        }
+        else
+        {
+            WindowState = WindowState.Maximized;
+            MaxGlyph.Text = "";
+        }
+    }
 
     private void SetupButton_Click(object sender, RoutedEventArgs e)
     {

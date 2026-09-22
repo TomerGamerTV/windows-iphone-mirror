@@ -104,10 +104,52 @@ public sealed class ViewerToolbarWindow : Window
         Top = origin.Y + 12;
     }
 
+    private double _slideBaseTop;
+
+    public void ShowAnimated(FrameworkElement viewer)
+    {
+        Reposition(viewer);
+        _slideBaseTop = Top;
+        if (IsVisible)
+        {
+            Top = _slideBaseTop;
+            return;
+        }
+        Opacity = 0;
+        Top = _slideBaseTop - 14;
+        Show();
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        var opacity = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease };
+        var slide = new System.Windows.Media.Animation.DoubleAnimation(_slideBaseTop - 14, _slideBaseTop, TimeSpan.FromMilliseconds(180)) { EasingFunction = ease };
+        BeginAnimation(TopProperty, slide);
+        BeginAnimation(OpacityProperty, opacity);
+    }
+
+    public void HideAnimated()
+    {
+        if (!IsVisible) return;
+        _slideBaseTop = Top;
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn };
+        var opacity = new System.Windows.Media.Animation.DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(140)) { EasingFunction = ease };
+        var slide = new System.Windows.Media.Animation.DoubleAnimation(_slideBaseTop, _slideBaseTop - 10, TimeSpan.FromMilliseconds(140)) { EasingFunction = ease };
+        opacity.Completed += (_, _) =>
+        {
+            BeginAnimation(TopProperty, null);
+            BeginAnimation(OpacityProperty, null);
+            Hide();
+            Opacity = 1;
+        };
+        BeginAnimation(TopProperty, slide);
+        BeginAnimation(OpacityProperty, opacity);
+    }
+
     private void RepositionIfVisible()
     {
         if (IsVisible && Owner is MainWindow owner && owner.WindowState != WindowState.Minimized && owner.IsLoaded)
+        {
             Reposition(owner.MpvHost);
+            _slideBaseTop = Top;
+        }
     }
 
     private Button CreateButton(UIElement icon, string tooltip, string action)
@@ -207,12 +249,11 @@ public sealed class ViewerToolbarWindow : Window
 
     private static UIElement CreateSettingsIcon()
     {
-        // Real cog glyph (the previous stroked circle+spokes read as a sun).
         return new TextBlock
         {
-            Text = "⚙",
-            FontFamily = new FontFamily("Segoe UI Symbol"),
-            FontSize = 17,
+            Text = "",
+            FontFamily = new FontFamily("Segoe Fluent Icons"),
+            FontSize = 16,
             LineHeight = 18,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
