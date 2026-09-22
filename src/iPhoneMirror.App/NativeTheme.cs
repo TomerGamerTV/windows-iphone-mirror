@@ -32,10 +32,10 @@ internal static class NativeTheme
             var backdropValue = (int)backdrop;
             _ = DwmSetWindowAttribute(handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkValue, sizeof(int));
             _ = DwmSetWindowAttribute(handle, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropValue, sizeof(int));
-            // Round the outer window via DWM so the embedded MPV HWND (which
-            // ignores WPF ClipToBounds) is clipped to the same phone-like
-            // shape as the rest of the chrome. This removes the square
-            // video corners / black border seen with WPF-only rounding.
+            // Round the outer window at the DWM level so the embedded MPV HWND
+            // (which ignores WPF ClipToBounds) is clipped to the same shape.
+            // WindowChrome.CornerRadius drives the larger WPF-side radius; DWM
+            // still clips child HWNDs so video corners never poke out square.
             var cornerValue = DWMWCP_ROUND;
             _ = DwmSetWindowAttribute(handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerValue, sizeof(int));
         }

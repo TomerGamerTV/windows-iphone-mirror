@@ -11,8 +11,9 @@
         WindowStyle="None"
         ResizeMode="CanResize">
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="24" ResizeBorderThickness="8"
-                            GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+        <!-- Larger CornerRadius ≈ macOS iPhone Mirroring window; custom Win11-style caption buttons (right). -->
+        <shell:WindowChrome CaptionHeight="40" ResizeBorderThickness="8"
+                            GlassFrameThickness="1" CornerRadius="16" UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
     <Grid Margin="0">
         <Grid.RowDefinitions>
@@ -21,7 +22,7 @@
         </Grid.RowDefinitions>
 
         <!-- Phone viewer: edge-to-edge, transparent (no black border). Native DWM rounding clips the MPV HWND cleanly. -->
-        <Border Grid.Row="0" x:Name="ViewerFrame" CornerRadius="12" ClipToBounds="True"
+        <Border Grid.Row="0" x:Name="ViewerFrame" CornerRadius="16" ClipToBounds="True"
                 Background="Transparent" BorderThickness="0" Margin="0"
                 PreviewMouseLeftButtonDown="ViewerFrame_PreviewMouseDown"
                 AutomationProperties.Name="iPhone screen viewer">
@@ -31,29 +32,36 @@
                 <Border x:Name="EmptyOverlay" Background="Transparent" Visibility="Visible"
                         AutomationProperties.Name="Viewer status">
                     <Grid>
-                        <!-- Custom traffic lights + settings (visible when idle; hover pill takes over when live). No text labels, no header bar. -->
-                        <DockPanel VerticalAlignment="Top" Margin="14,10,14,0" LastChildFill="False">
-                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <Button x:Name="CloseBtn" Width="26" Height="26" Padding="0" ToolTip="Close" Click="CloseBtn_Click"
-                                        Background="Transparent" BorderThickness="0" AutomationProperties.Name="Close"
-                                        Content="●" FontFamily="Segoe UI Symbol" FontSize="13" Foreground="#FF5F57"
-                                        shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-                                <Button x:Name="MinBtn" Width="26" Height="26" Padding="0" ToolTip="Minimize" Click="MinBtn_Click"
-                                        Background="Transparent" BorderThickness="0" AutomationProperties.Name="Minimize"
-                                        Content="●" FontFamily="Segoe UI Symbol" FontSize="13" Foreground="#FEBC2E"
-                                        shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-                                <!-- Third traffic light: present but disabled (no maximize), matching macOS. -->
-                                <Grid Width="26" Height="26" IsHitTestVisible="False">
-                                    <Ellipse Width="13" Height="13" Fill="#3A3F45" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Grid>
-                            </StackPanel>
-                            <Button x:Name="SettingsCogButton" DockPanel.Dock="Right" Width="34" Height="30" Padding="0"
+                        <!-- Settings left; Windows-style caption buttons (min/max/close) right. -->
+                        <Grid VerticalAlignment="Top" Height="40">
+                            <Button x:Name="SettingsCogButton" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    Width="40" Height="40" Padding="0" Margin="8,0,0,0"
                                     ToolTip="Settings" Click="SettingsButton_Click"
                                     Background="Transparent" BorderThickness="0" FontSize="16"
                                     Foreground="{DynamicResource TextBrush}" Content="⚙"
                                     AutomationProperties.Name="Open settings"
                                     shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-                        </DockPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Stretch">
+                                <Button x:Name="MinBtn" Width="46" Height="40" Style="{StaticResource CaptionButton}"
+                                        ToolTip="Minimize" Click="MinBtn_Click" AutomationProperties.Name="Minimize"
+                                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                    <TextBlock Text="—" FontFamily="Segoe UI" FontSize="16" FontWeight="Light"
+                                               Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" />
+                                </Button>
+                                <Button x:Name="MaxBtn" Width="46" Height="40" Style="{StaticResource CaptionButton}"
+                                        ToolTip="Maximize" Click="MaxBtn_Click" AutomationProperties.Name="Maximize"
+                                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                    <TextBlock Text="☐" FontFamily="Segoe UI" FontSize="14"
+                                               Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" />
+                                </Button>
+                                <Button x:Name="CloseBtn" Width="46" Height="40" Style="{StaticResource CaptionButton}"
+                                        ToolTip="Close" Click="CloseBtn_Click" AutomationProperties.Name="Close"
+                                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                    <TextBlock Text="✕" FontFamily="Segoe UI" FontSize="14"
+                                               Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
 
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="330" Margin="0,20,0,0">
                             <Border Width="56" Height="96" CornerRadius="12" BorderThickness="3"

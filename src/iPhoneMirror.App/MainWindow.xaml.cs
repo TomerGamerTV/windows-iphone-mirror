@@ -592,17 +592,10 @@ public partial class MainWindow : Window
 
     private void ViewerToolbarWindow_ActionRequested(object? sender, string action)
     {
-        switch (action)
+        if (action == "settings")
         {
-            case "close":
-                Close();
-                return;
-            case "minimize":
-                WindowState = WindowState.Minimized;
-                return;
-            case "settings":
-                ToggleSettingsSheet();
-                return;
+            ToggleSettingsSheet();
+            return;
         }
         if (!_sessionActive || _worker is null || _worker.HasExited) return;
         // Host controls are input events. Do not make the click wait for a
@@ -864,8 +857,13 @@ public partial class MainWindow : Window
     private async void ConnectButton_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
     private async void ReconnectButton_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
     private async void DisconnectButton_Click(object sender, RoutedEventArgs e) => await StopSessionAsync();
+
     private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();
+
     private void MinBtn_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void MaxBtn_Click(object sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
     private void SetupButton_Click(object sender, RoutedEventArgs e)
     {

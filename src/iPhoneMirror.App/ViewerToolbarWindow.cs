@@ -9,8 +9,8 @@ using System.Windows.Automation;
 namespace iPhoneMirror.App;
 
 /// <summary>
-/// macOS-style hover pill: traffic lights + Home + App Switcher + Settings.
-/// Icon-only, no text labels (fixes the "Mica Backdrop" white-on-white header).
+/// Hover pill over live video: Home + App Switcher + Settings.
+/// Window controls use the main window's native Windows caption buttons.
 /// Separate top-level window so it renders above the embedded MPV HWND.
 /// </summary>
 public sealed class ViewerToolbarWindow : Window
@@ -20,7 +20,7 @@ public sealed class ViewerToolbarWindow : Window
     public ViewerToolbarWindow(Window owner)
     {
         Owner = owner;
-        Width = 272;
+        Width = 220;
         Height = 52;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -64,17 +64,6 @@ public sealed class ViewerToolbarWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             LastChildFill = true,
         };
-
-        var traffic = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(2, 0, 8, 0),
-        };
-        traffic.Children.Add(CreateTrafficDot(Color.FromRgb(255, 95, 87), "Close", "close"));
-        traffic.Children.Add(CreateTrafficDot(Color.FromRgb(254, 188, 46), "Minimize", "minimize"));
-        DockPanel.SetDock(traffic, Dock.Left);
-        row.Children.Add(traffic);
 
         var settingsBtn = CreateButton(CreateSettingsIcon(), "Settings", "settings");
         DockPanel.SetDock(settingsBtn, Dock.Right);
@@ -121,54 +110,13 @@ public sealed class ViewerToolbarWindow : Window
             Reposition(owner.MpvHost);
     }
 
-    private Button CreateTrafficDot(Color color, string tooltip, string action)
-    {
-        var dot = new Ellipse
-        {
-            Width = 12,
-            Height = 12,
-            Fill = new SolidColorBrush(color),
-            Stroke = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)),
-            StrokeThickness = 0.8,
-            Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.4, Color = Colors.Black },
-        };
-        var button = new Button
-        {
-            Content = dot,
-            Width = 22,
-            Height = 28,
-            Padding = new Thickness(0),
-            Margin = new Thickness(0),
-            ToolTip = tooltip,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Focusable = false,
-        };
-        var template = new ControlTemplate(typeof(Button));
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.Name = "ButtonChrome";
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
-        border.SetValue(Border.BackgroundProperty, Brushes.Transparent);
-        var content = new FrameworkElementFactory(typeof(ContentPresenter));
-        content.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        content.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-        border.AppendChild(content);
-        template.VisualTree = border;
-        var hoverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hoverTrigger.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(45, 255, 255, 255)), "ButtonChrome"));
-        template.Triggers.Add(hoverTrigger);
-        button.Template = template;
-        AutomationProperties.SetName(button, tooltip);
-        button.Click += (_, _) => ActionRequested?.Invoke(this, action);
-        return button;
-    }
-
     private Button CreateButton(UIElement icon, string tooltip, string action)
     {
         var button = new Button
         {
             Content = icon,
-            Width = 38,
-            Height = 36,
+            Width = 44,
+            Height = 40,
             Padding = new Thickness(0),
             Margin = new Thickness(0, 0, action == "home" ? 6 : 0, 0),
             ToolTip = tooltip,
