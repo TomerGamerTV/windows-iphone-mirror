@@ -18,6 +18,9 @@ public sealed class MpvHostControl : HwndHost
     public IntPtr HostHandle => _hwnd;
     public event EventHandler<NativeMouseEventArgs>? NativeMouse;
     public event EventHandler<ViewerToolbarActionEventArgs>? ViewerToolbarAction;
+    public event EventHandler<NativeKeyEventArgs>? NativeKeyDown;
+    public event EventHandler<NativeKeyEventArgs>? NativeKeyUp;
+    public bool HasNativeMouseCapture => _mouseCaptured;
 
     public void SetViewerToolbarVisible(bool visible)
     {
@@ -156,6 +159,14 @@ public sealed class MpvHostControl : HwndHost
                 ScreenToClient(hwnd, ref point);
                 owner.RaiseMouse("wheel", point.X, point.Y, SignedHighWord(wParam));
                 return IntPtr.Zero;
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                owner.RaiseKey(down: true, wParam, lParam);
+                return IntPtr.Zero;
+            case WM_KEYUP:
+            case WM_SYSKEYUP:
+                owner.RaiseKey(down: false, wParam, lParam);
+                return IntPtr.Zero;
         }
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -197,13 +208,32 @@ public sealed class MpvHostControl : HwndHost
                 RaiseMouse("move", lParam, 0);
                 break;
             case WM_MOUSEWHEEL:
-                var point = new POINT { X = SignedLowWord(lParam), Y = SignedHighWord(lParam) };
-                ScreenToClient(hwnd, ref point);
-                RaiseMouse("wheel", point.X, point.Y, SignedHighWord(wParam));
+                var wheelPoint = new POINT { X = SignedLowWord(lParam), Y = SignedHighWord(lParam) };
+                ScreenToClient(hwnd, ref wheelPoint);
+                RaiseMouse("wheel", wheelPoint.X, wheelPoint.Y, SignedHighWord(wParam));
+                handled = true;
+                break;
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                RaiseKey(down: true, wParam, lParam);
+                handled = true;
+                break;
+            case WM_KEYUP:
+            case WM_SYSKEYUP:
+                RaiseKey(down: false, wParam, lParam);
                 handled = true;
                 break;
         }
         return IntPtr.Zero;
+    }
+
+    private void RaiseKey(bool down, IntPtr wParam, IntPtr lParam)
+    {
+        var virtualKey = wParam.ToInt32() & 0xFFFF;
+        var repeat = ((long)lParam & 0x40000000) != 0;
+        var args = new NativeKeyEventArgs(virtualKey, repeat);
+        if (down) NativeKeyDown?.Invoke(this, args);
+        else NativeKeyUp?.Invoke(this, args);
     }
 
     private void RaiseMouse(string kind, IntPtr lParam, int delta) =>
@@ -311,6 +341,10 @@ public sealed class MpvHostControl : HwndHost
     private const int WM_CAPTURECHANGED = 0x0215;
     private const int WM_MOUSEWHEEL = 0x020A;
     private const int WM_PARENTNOTIFY = 0x0210;
+    private const int WM_KEYDOWN = 0x0100;
+    private const int WM_KEYUP = 0x0101;
+    private const int WM_SYSKEYDOWN = 0x0104;
+    private const int WM_SYSKEYUP = 0x0105;
     private const int ERROR_CLASS_ALREADY_EXISTS = 1410;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_SHOWWINDOW = 0x0040;
@@ -393,3 +427,4 @@ public sealed class MpvHostControl : HwndHost
 
 public sealed record NativeMouseEventArgs(string Kind, int X, int Y, int Width, int Height, int Delta);
 public sealed record ViewerToolbarActionEventArgs(string Action);
+public sealed record NativeKeyEventArgs(int VirtualKey, bool IsRepeat);

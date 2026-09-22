@@ -56,6 +56,8 @@ public partial class MainWindow : Window
         PreviewKeyDown += MainWindow_PreviewKeyDown;
         PreviewKeyUp += MainWindow_PreviewKeyUp;
         MpvHost.NativeMouse += MpvHost_NativeMouse;
+        MpvHost.NativeKeyDown += (_, e) => Dispatcher.InvokeAsync(() => HandleKeyDownAsync(KeyInterop.KeyFromVirtualKey(e.VirtualKey)));
+        MpvHost.NativeKeyUp += (_, e) => Dispatcher.InvokeAsync(() => HandleKeyUpAsync(KeyInterop.KeyFromVirtualKey(e.VirtualKey)));
         _viewerToolbarTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
         _viewerToolbarTimer.Tick += (_, _) =>
         {
@@ -68,7 +70,10 @@ public partial class MainWindow : Window
         };
         _inputOverlayTimer.Tick += (_, _) =>
         {
-            if (_sessionActive && !_stopping) MpvHost.BringInputOverlayToFront();
+            // Never reassert z-order during an active drag: SetWindowPos can
+            // drop mouse capture and freeze look-around in games.
+            if (_sessionActive && !_stopping && !_touchActive && !MpvHost.HasNativeMouseCapture)
+                MpvHost.BringInputOverlayToFront();
         };
         SystemEvents.UserPreferenceChanged += SystemEvents_UserPreferenceChanged;
         SelectConnectionMode(_settings.Connection);
@@ -559,6 +564,7 @@ public partial class MainWindow : Window
             {
                 await Task.Delay(delay);
                 if (_stopping || _mpv is null) return;
+                if (_touchActive || MpvHost.HasNativeMouseCapture) continue;
                 MpvHost.BringInputOverlayToFront();
             }
         }
@@ -676,28 +682,37 @@ public partial class MainWindow : Window
     private async void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        // Esc always dismisses the sheet (even with no session).
+        if (await HandleKeyDownAsync(key)) e.Handled = true;
+    }
+
+    private async void MainWindow_PreviewKeyUp(object sender, KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (await HandleKeyUpAsync(key)) e.Handled = true;
+    }
+
+    private async Task<bool> HandleKeyDownAsync(Key key)
+    {
+        // Esc always dismisses the sheet (even with no session) and must not
+        // also reach the phone — that re-opened in-game pause menus.
         if (key == Key.Escape && SettingsSheet.Visibility == Visibility.Visible)
         {
-            e.Handled = true;
             HideSettingsSheet();
-            return;
+            return true;
         }
-        if (!_sessionActive || _worker is null || _worker.HasExited) return;
+        if (!_sessionActive || _worker is null || _worker.HasExited) return false;
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && key is Key.D1 or Key.NumPad1 or Key.D2 or Key.NumPad2 or Key.D3 or Key.NumPad3)
         {
-            e.Handled = true;
             var command = key is Key.D1 or Key.NumPad1
                 ? "home"
                 : key is Key.D2 or Key.NumPad2
                     ? "app_switcher"
                     : "spotlight";
             _ = _worker.SendCommandNoWaitAsync(command);
-            return;
+            return true;
         }
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && key == Key.V)
         {
-            e.Handled = true;
             _suppressedPasteKeys.Add(key);
             if (Keyboard.IsKeyDown(Key.LeftCtrl)) _suppressedPasteKeys.Add(Key.LeftCtrl);
             if (Keyboard.IsKeyDown(Key.RightCtrl)) _suppressedPasteKeys.Add(Key.RightCtrl);
@@ -708,13 +723,13 @@ public partial class MainWindow : Window
                 if (!Clipboard.ContainsText(TextDataFormat.UnicodeText))
                 {
                     StatusText.Text = "Clipboard is not plain text.";
-                    return;
+                    return true;
                 }
                 var text = Clipboard.GetText(TextDataFormat.UnicodeText);
                 if (Encoding.UTF8.GetByteCount(text) > 1024 * 1024)
                 {
                     StatusText.Text = "Clipboard text exceeds 1 MiB.";
-                    return;
+                    return true;
                 }
                 await _worker.SendCommandAsync("paste", new { text }, TimeSpan.FromSeconds(10));
                 text = string.Empty;
@@ -722,36 +737,31 @@ public partial class MainWindow : Window
             }
             catch
             {
-                    StatusText.Text = "Paste failed — use plain text ≤ 1 MiB.";
+                StatusText.Text = "Paste failed — use plain text ≤ 1 MiB.";
             }
-            return;
+            return true;
         }
 
         var usage = KeyboardMapper.ToHidUsage(key);
-        if (usage is null) return;
-        e.Handled = true;
+        if (usage is null) return false;
         if (_heldUsages.Add(usage.Value))
         {
             try { await SendHeldKeysAsync(); } catch { }
         }
+        return true;
     }
 
-    private async void MainWindow_PreviewKeyUp(object sender, KeyEventArgs e)
+    private async Task<bool> HandleKeyUpAsync(Key key)
     {
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if (_suppressedPasteKeys.Remove(key))
-        {
-            e.Handled = true;
-            return;
-        }
-        if (!_sessionActive || _worker is null || _worker.HasExited) return;
+        if (_suppressedPasteKeys.Remove(key)) return true;
+        if (!_sessionActive || _worker is null || _worker.HasExited) return false;
         var usage = KeyboardMapper.ToHidUsage(key);
-        if (usage is null) return;
-        e.Handled = true;
+        if (usage is null) return false;
         if (_heldUsages.Remove(usage.Value))
         {
             try { await SendHeldKeysAsync(); } catch { }
         }
+        return true;
     }
 
     private Task SendHeldKeysAsync() =>
