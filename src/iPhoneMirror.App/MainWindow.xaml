@@ -9,7 +9,8 @@
         Foreground="{DynamicResource TextBrush}"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        ResizeMode="CanResize">
+        ResizeMode="CanResize"
+        Icon="app.ico">
     <shell:WindowChrome.WindowChrome>
         <!-- Larger CornerRadius ≈ macOS iPhone Mirroring window; custom Win11-style caption buttons (right). -->
         <shell:WindowChrome CaptionHeight="40" ResizeBorderThickness="8"
@@ -48,8 +49,10 @@
                 <Button x:Name="MaxBtn" Style="{StaticResource CaptionButton}"
                         ToolTip="Maximize" Click="MaxBtn_Click" AutomationProperties.Name="Maximize"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                    <TextBlock x:Name="MaxGlyph" Text="&#xE922;" FontFamily="Segoe Fluent Icons" FontSize="10"
-                               Foreground="{DynamicResource TextBrush}" />
+                    <Canvas Width="10" Height="10">
+                        <Rectangle x:Name="MaxGlyph" Width="9" Height="9"
+                                   Stroke="{DynamicResource TextBrush}" StrokeThickness="1.2" />
+                    </Canvas>
                 </Button>
                 <Button x:Name="CloseBtn" Style="{StaticResource CaptionCloseButton}"
                         ToolTip="Close" Click="CloseBtn_Click" AutomationProperties.Name="Close"
@@ -110,9 +113,12 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="70" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBox x:Name="WifiAddressBox" Text="" ToolTip="Wi-Fi iPhone address" AutomationProperties.Name="Wi-Fi iPhone address" Margin="0,0,6,0" />
-                                        <TextBox x:Name="WifiPortBox" Grid.Column="1" Text="49152" ToolTip="Wi-Fi remote pairing port" AutomationProperties.Name="Wi-Fi remote pairing port" />
+                                        <TextBox x:Name="WifiAddressBox" Text="" ToolTip="iPhone Wi-Fi IP (e.g. 192.168.1.20). Leave empty for USB." AutomationProperties.Name="Wi-Fi iPhone address" Margin="0,0,6,0" />
+                                        <TextBox x:Name="WifiPortBox" Grid.Column="1" Text="49152" ToolTip="Wi-Fi remote pairing port (usually 49152)" AutomationProperties.Name="Wi-Fi remote pairing port" />
                                     </Grid>
+                                    <TextBlock x:Name="WifiHint" Visibility="Collapsed" Margin="0,0,0,6"
+                                               TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"
+                                               Text="Wi-Fi only: type the iPhone’s local IP address. For USB, switch mode to Auto or USB and leave this blank." />
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                         <Button x:Name="ConnectButton" Content="Connect" Click="ConnectButton_Click"
                                                 Background="{DynamicResource AccentBrush}" Foreground="White"

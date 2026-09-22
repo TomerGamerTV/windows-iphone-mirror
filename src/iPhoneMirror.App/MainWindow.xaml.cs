@@ -147,6 +147,7 @@ public partial class MainWindow : Window
             item.IsSelected = string.Equals(item.Tag?.ToString(), mode.ToString(), StringComparison.OrdinalIgnoreCase);
         }
         WifiFieldsGrid.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
+        WifiHint.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private ConnectionMode SelectedConnectionMode() =>
@@ -222,13 +223,27 @@ public partial class MainWindow : Window
 
     private async Task ConnectAsync(bool preferSoftwareDecode = false)
     {
-        if (_stopping) return;
+        if (_stopping)
+        {
+            SetCaptionStatus("Busy…");
+            return;
+        }
         try
         {
             ConnectButton.IsEnabled = false;
             StatusText.Text = "Connecting…";
             SetCaptionStatus("Connecting…");
             EmptyMessage.Text = "Opening the CoreDevice display stream…";
+
+            var mode = SelectedConnectionMode();
+            if (mode == ConnectionMode.Wifi && string.IsNullOrWhiteSpace(WifiAddressBox.Text))
+            {
+                await StopSessionAsync(updateUi: false);
+                SetError("wifi_unreachable");
+                EmptyMessage.Text = "Enter the iPhone’s Wi‑Fi address (and port), or switch to USB/Auto.";
+                return;
+            }
+
             await StopSessionAsync(updateUi: false);
             await EnsureWorkerAsync();
 
@@ -268,14 +283,18 @@ public partial class MainWindow : Window
             await StopSessionAsync(updateUi: false);
             SetError(error.Code);
         }
-        catch
+        catch (Exception error)
         {
             await StopSessionAsync(updateUi: false);
             SetError("connection_failed");
+            EmptyMessage.Text = error.Message;
+            System.Diagnostics.Debug.WriteLine(error);
         }
         finally
         {
             ConnectButton.IsEnabled = true;
+            if (!_sessionActive && string.IsNullOrEmpty(CaptionStatus.Text))
+                SetCaptionStatus(string.Empty);
         }
     }
 
@@ -891,12 +910,20 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Maximized)
         {
             WindowState = WindowState.Normal;
-            MaxGlyph.Text = "";
+            MaxBtn.ToolTip = "Maximize";
+            MaxGlyph.Width = 9;
+            MaxGlyph.Height = 9;
+            Canvas.SetLeft(MaxGlyph, 0.5);
+            Canvas.SetTop(MaxGlyph, 0.5);
         }
         else
         {
             WindowState = WindowState.Maximized;
-            MaxGlyph.Text = "";
+            MaxBtn.ToolTip = "Restore down";
+            MaxGlyph.Width = 7;
+            MaxGlyph.Height = 7;
+            Canvas.SetLeft(MaxGlyph, 3);
+            Canvas.SetTop(MaxGlyph, 0);
         }
     }
 
@@ -1045,9 +1072,12 @@ public partial class MainWindow : Window
 
     private void ConnectionModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        var mode = SelectedConnectionMode();
+        WifiFieldsGrid.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
+        WifiHint.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
         if (IsLoaded)
         {
-            _settings.Connection = SelectedConnectionMode();
+            _settings.Connection = mode;
             SettingsStore.Save(_paths.SettingsFile, _settings);
         }
     }
