@@ -5,14 +5,30 @@ namespace iPhoneMirror.Core;
 
 public sealed class AppSettings
 {
+    public const int MaxWifiAddressHistory = 8;
+
     [JsonConverter(typeof(JsonStringEnumConverter<ConnectionMode>))]
     public ConnectionMode Connection { get; set; } = ConnectionMode.Auto;
     public string? Serial { get; set; }
     public string? WifiAddress { get; set; }
+    public List<string> WifiAddressHistory { get; set; } = [];
     public int WifiPort { get; set; } = 49152;
     public bool PreferHardwareDecode { get; set; } = true;
     public string Backdrop { get; set; } = "Acrylic";
     public bool AlwaysOnTop { get; set; } = false;
+
+    public void RememberWifiAddress(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return;
+        var entry = address.Trim();
+        WifiAddressHistory ??= [];
+        WifiAddressHistory.Remove(entry);
+        WifiAddressHistory.Insert(0, entry);
+        if (WifiAddressHistory.Count > MaxWifiAddressHistory)
+        {
+            WifiAddressHistory.RemoveRange(MaxWifiAddressHistory, WifiAddressHistory.Count - MaxWifiAddressHistory);
+        }
+    }
 }
 
 public static class SettingsStore

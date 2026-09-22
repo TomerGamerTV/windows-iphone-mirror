@@ -81,6 +81,26 @@ public sealed class CoreBehaviorTests
     }
 
     [Fact]
+    public void Settings_WifiAddressHistory_KeepsMostRecentFirstAndCaps()
+    {
+        var settings = new AppSettings();
+        for (var i = 0; i < AppSettings.MaxWifiAddressHistory + 3; i++)
+        {
+            settings.RememberWifiAddress($"192.168.1.{i}");
+        }
+
+        settings.RememberWifiAddress("192.168.1.1");
+        Assert.Equal(AppSettings.MaxWifiAddressHistory, settings.WifiAddressHistory.Count);
+        Assert.Equal("192.168.1.1", settings.WifiAddressHistory[0]);
+        Assert.Equal("192.168.1.4", settings.WifiAddressHistory[^1]);
+        Assert.Equal(1, settings.WifiAddressHistory.Count(address => address == "192.168.1.1"));
+
+        settings.RememberWifiAddress(null);
+        settings.RememberWifiAddress("   ");
+        Assert.Equal(AppSettings.MaxWifiAddressHistory, settings.WifiAddressHistory.Count);
+    }
+
+    [Fact]
     public void RuntimePaths_UseWindowsApplicationFolders()
     {
         var paths = new RuntimePaths(@"C:\Local", @"C:\Roaming");

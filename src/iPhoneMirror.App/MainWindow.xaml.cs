@@ -47,6 +47,7 @@ public partial class MainWindow : Window
 
         InitializeComponent();
         WifiAddressBox.Text = _settings.WifiAddress ?? string.Empty;
+        RefreshWifiAddressHistory();
         WifiPortBox.Text = _settings.WifiPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
         Loaded += MainWindow_Loaded;
         SourceInitialized += (_, _) => NativeTheme.Apply(this, _currentBackdrop);
@@ -162,6 +163,29 @@ public partial class MainWindow : Window
 
     private string? SelectedWifiAddress() => string.IsNullOrWhiteSpace(WifiAddressBox.Text) ? null : WifiAddressBox.Text.Trim();
 
+    private void RefreshWifiAddressHistory()
+    {
+        if (WifiAddressBox is null) return;
+        var current = WifiAddressBox.Text?.Trim();
+        var history = (_settings.WifiAddressHistory ?? [])
+            .Where(address => !string.IsNullOrWhiteSpace(address))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (!string.IsNullOrWhiteSpace(current) && !history.Contains(current!, StringComparer.OrdinalIgnoreCase))
+        {
+            history.Insert(0, current!);
+        }
+        WifiAddressBox.ItemsSource = history;
+    }
+
+    private void RememberWifiAddress(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return;
+        _settings.RememberWifiAddress(address);
+        SettingsStore.Save(_paths.SettingsFile, _settings);
+        RefreshWifiAddressHistory();
+    }
+
     private int SelectedWifiPort() => int.TryParse(WifiPortBox.Text, out var port) && port is > 0 and <= 65535 ? port : 49152;
 
     private async Task EnsureWorkerAsync()
@@ -265,7 +289,9 @@ public partial class MainWindow : Window
             _settings.Serial = SelectedSerial();
             _settings.WifiAddress = SelectedWifiAddress();
             _settings.WifiPort = SelectedWifiPort();
+            _settings.RememberWifiAddress(_settings.WifiAddress);
             SettingsStore.Save(_paths.SettingsFile, _settings);
+            RefreshWifiAddressHistory();
             await _worker!.SendCommandAsync("start_session", new
             {
                 connection = _settings.Connection.ToString().ToLowerInvariant(),
@@ -1077,6 +1103,10 @@ public partial class MainWindow : Window
         var mode = SelectedConnectionMode();
         WifiFieldsGrid.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
         WifiHint.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
+        if (mode == ConnectionMode.Wifi && WifiAddressBox is not null)
+        {
+            RefreshWifiAddressHistory();
+        }
         if (IsLoaded)
         {
             _settings.Connection = mode;
