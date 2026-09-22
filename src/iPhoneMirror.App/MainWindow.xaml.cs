@@ -1072,6 +1072,8 @@ public partial class MainWindow : Window
 
     private void ConnectionModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        // Fires from InitializeComponent while later named fields (WifiHint) are still null.
+        if (WifiFieldsGrid is null || WifiHint is null) return;
         var mode = SelectedConnectionMode();
         WifiFieldsGrid.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
         WifiHint.Visibility = mode == ConnectionMode.Wifi ? Visibility.Visible : Visibility.Collapsed;
